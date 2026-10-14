@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://innosprint.web.app/sitemap.xml

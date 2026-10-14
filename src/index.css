@@ -1,0 +1,457 @@
+@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,400;0,700;0,900;1,700&family=Orbitron:wght@600;700;800;900&family=Rajdhani:wght@600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+@import "tailwindcss";
+
+:root {
+  color-scheme: dark;
+  --font-orbitron: 'Orbitron', sans-serif;
+  --font-rajdhani: 'Rajdhani', sans-serif;
+  --font-chakra: 'Chakra Petch', sans-serif;
+
+  /* Premium Admin Command Center Typography */
+  --font-heading: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+/* Centralized Admin Typography Utility Classes */
+.font-heading {
+  font-family: var(--font-heading);
+}
+
+.font-body {
+  font-family: var(--font-body);
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+/* Scoped Admin Shell Hierarchy & Design Tokens */
+.admin-shell {
+  --admin-bg: #070b14;
+  --admin-sidebar: #090f1d;
+  --admin-card: #0d1424;
+  --admin-surface: #111b2d;
+  --admin-border: #1d2a40;
+  --admin-border-hover: #2a3d5c;
+  --admin-cyan: #22d3ee;
+
+  background-color: #070b14;
+  color: #f3f4f6;
+  font-family: var(--font-body);
+  letter-spacing: -0.011em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.admin-shell h1,
+.admin-shell h2,
+.admin-shell h3,
+.admin-shell h4,
+.admin-heading {
+  font-family: var(--font-heading);
+  letter-spacing: -0.025em;
+}
+
+.admin-shell code,
+.admin-shell pre,
+.admin-shell .font-mono,
+.admin-mono {
+  font-family: var(--font-mono);
+  letter-spacing: -0.015em;
+}
+
+.admin-card {
+  background-color: #0d1424;
+  border: 1px solid #1d2a40;
+  border-radius: 1rem;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.admin-card:hover {
+  border-color: #2a3d5c;
+  transform: translateY(-2px);
+}
+
+.admin-surface {
+  background-color: #111b2d;
+  border: 1px solid #1d2a40;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background-color: #030712;
+  color: #f3f4f6;
+  font-family: var(--font-rajdhani);
+  overflow-x: clip;
+  width: 100%;
+  min-height: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Responsive Art Direction Breakpoint Classes */
+@media (max-width: 767px) {
+  .hero-desktop {
+    display: none !important;
+  }
+  .hero-mobile {
+    display: flex !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .hero-mobile {
+    display: none !important;
+  }
+  .hero-desktop {
+    display: flex !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-mobile *, .hero-desktop * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* Futuristic 3D Bevel Text Effects */
+.title-inno-metal {
+  font-family: var(--font-orbitron);
+  background: linear-gradient(180deg, #ffffff 0%, #e2e8f0 30%, #94a3b8 65%, #38bdf8 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 15px rgba(56, 189, 248, 0.7)) drop-shadow(0 4px 10px rgba(0, 0, 0, 0.9));
+  letter-spacing: 0.06em;
+}
+
+.title-sprint-metal {
+  font-family: var(--font-orbitron);
+  background: linear-gradient(180deg, #ffffff 0%, #fef08a 30%, #f97316 70%, #ea580c 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 18px rgba(249, 115, 22, 0.8)) drop-shadow(0 4px 10px rgba(0, 0, 0, 0.9));
+  letter-spacing: 0.06em;
+}
+
+/* Vertical Energy Light Beam Animation */
+@keyframes verticalBeamPulse {
+  0%, 100% {
+    opacity: 0.7;
+    filter: drop-shadow(0 0 15px #38bdf8) drop-shadow(0 0 30px #f97316);
+  }
+  50% {
+    opacity: 1;
+    filter: drop-shadow(0 0 25px #00d2ff) drop-shadow(0 0 45px #ff8c00);
+  }
+}
+
+.animate-vertical-beam {
+  animation: verticalBeamPulse 3s infinite ease-in-out;
+}
+
+/* Glassmorphism Styles */
+.glass-panel {
+  background: rgba(10, 15, 30, 0.65);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+}
+
+.glass-btn-primary {
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.85) 0%, rgba(56, 189, 248, 0.85) 100%);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 0 20px rgba(249, 115, 22, 0.4), 0 0 30px rgba(56, 189, 248, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  transition: all 0.3s ease;
+}
+
+.glass-btn-primary:active {
+  transform: scale(0.97);
+  box-shadow: 0 0 30px rgba(249, 115, 22, 0.7), 0 0 45px rgba(56, 189, 248, 0.6);
+}
+
+.glass-btn-secondary {
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  transition: all 0.3s ease;
+}
+
+.glass-btn-secondary:active {
+  transform: scale(0.97);
+  background: rgba(30, 41, 59, 0.7);
+  border-color: rgba(56, 189, 248, 0.4);
+}
+
+/* Animations */
+@keyframes eyeGlowPulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 8px #00d2ff) drop-shadow(0 0 20px #00d2ff);
+    opacity: 0.85;
+  }
+  50% {
+    filter: drop-shadow(0 0 18px #38bdf8) drop-shadow(0 0 35px #0284c7);
+    opacity: 1;
+  }
+}
+
+.animate-eye-glow {
+  animation: eyeGlowPulse 2.5s infinite ease-in-out;
+}
+
+@keyframes energyGather {
+  0% {
+    opacity: 0;
+    transform: scale(0.5) rotate(0deg);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.2) rotate(180deg);
+  }
+  100% {
+    opacity: 0.2;
+    transform: scale(1) rotate(360deg);
+  }
+}
+
+.animate-energy-ring {
+  animation: energyGather 4s infinite linear;
+}
+
+/* Safe area utilities for mobile devices */
+.padding-safe-top {
+  padding-top: max(16px, env(safe-area-inset-top));
+}
+
+.padding-safe-bottom {
+  padding-bottom: max(20px, env(safe-area-inset-bottom));
+}
+
+/* Hide scrollbar for clean app view */
+::-webkit-scrollbar {
+  display: none;
+}
+
+/* Spotlight Navigation Bar */
+.spotlight-nav {
+  --spotlight-color: rgba(56, 189, 248, 0.25);
+  --ambience-color: rgba(56, 189, 248, 1);
+  --spotlight-x: 0px;
+  --ambience-x: 0px;
+}
+
+.spotlight-nav-bg {
+  background: rgba(10, 15, 30, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.glass-border {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.spotlight-nav-shadow {
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.8), 0 0 20px -5px rgba(56, 189, 248, 0.25);
+}
+
+:root {
+  --spotlight-color: rgba(56, 189, 248, 0.25);
+  --ambience-color: rgba(56, 189, 248, 1);
+}
+
+.dark, html.dark {
+  --spotlight-color: rgba(56, 189, 248, 0.35);
+  --ambience-color: #38bdf8;
+}
+
+/* Mobile Hero Cinematic Intro Keyframes */
+@keyframes metallicSweep {
+  0% {
+    transform: translateX(-160%) skewX(-20deg);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.95;
+  }
+  80% {
+    opacity: 0.95;
+  }
+  100% {
+    transform: translateX(260%) skewX(-20deg);
+    opacity: 0;
+  }
+}
+
+.animate-metallic-sweep {
+  animation: metallicSweep 1.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes horizonFlare {
+  0% {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+  40% {
+    transform: scaleX(1.15);
+    opacity: 1;
+  }
+  100% {
+    transform: scaleX(1);
+    opacity: 0.85;
+  }
+}
+
+.animate-horizon-flare {
+  animation: horizonFlare 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes floatEmber {
+  0% {
+    transform: translateY(0) translateX(0) scale(0.6);
+    opacity: 0;
+  }
+  25% {
+    opacity: 0.9;
+  }
+  80% {
+    opacity: 0.6;
+  }
+  100% {
+    transform: translateY(-90px) translateX(12px) scale(1.1);
+    opacity: 0;
+  }
+}
+
+.animate-ember-1 {
+  animation: floatEmber 3.4s infinite ease-in-out;
+}
+.animate-ember-2 {
+  animation: floatEmber 4.1s infinite ease-in-out 1.2s;
+}
+.animate-ember-3 {
+  animation: floatEmber 3.8s infinite ease-in-out 2.1s;
+}
+
+/* Rules & Eligibility Competition Protocol Styles */
+.bg-tech-grid {
+  background-size: 40px 40px;
+  background-image: 
+    linear-gradient(to right, rgba(56, 189, 248, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(56, 189, 248, 0.06) 1px, transparent 1px);
+}
+
+.bg-tech-grid-red {
+  background-size: 36px 36px;
+  background-image: 
+    linear-gradient(to right, rgba(239, 68, 68, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(239, 68, 68, 0.06) 1px, transparent 1px);
+}
+
+@keyframes scanlineSweep {
+  0% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.85;
+  }
+  85% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: translateY(500%);
+    opacity: 0;
+  }
+}
+
+.animate-scanline-cyan {
+  animation: scanlineSweep 5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes scanlineHorizontal {
+  0% {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+.animate-scan-horizontal {
+  animation: scanlineHorizontal 3.8s ease-in-out infinite;
+}
+
+.animate-scan-red {
+  animation: scanlineHorizontal 4.5s ease-in-out infinite;
+}
+
+@keyframes progressPulse {
+  0%, 100% {
+    opacity: 0.75;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.animate-progress-glow {
+  animation: progressPulse 2.5s ease-in-out infinite;
+}
+
+@keyframes routeDashFlow {
+  0% {
+    stroke-dashoffset: 48;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+.animate-route-dash {
+  stroke-dasharray: 8 8;
+  animation: routeDashFlow 2.2s linear infinite;
+}
+
+@keyframes trophyFloat {
+  0%, 100% {
+    transform: translateY(0px) scale(1);
+  }
+  50% {
+    transform: translateY(-5px) scale(1.03);
+  }
+}
+
+.animate-trophy-float {
+  animation: trophyFloat 3.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-scanline-cyan,
+  .animate-scan-horizontal,
+  .animate-scan-red,
+  .animate-progress-glow,
+  .animate-route-dash,
+  .animate-trophy-float {
+    animation: none !important;
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "short_name": "INNOSPRINT",
+  "name": "INNOSPRINT 2026 Hackathon",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#030712",
+  "theme_color": "#030712",
+  "display": "standalone"
+}
