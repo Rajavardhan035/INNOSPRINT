@@ -329,41 +329,363 @@ export const SCHEDULE_FINAL_STAGE = {
   ]
 };
 
+export const OFFICIAL_SCHEDULE_DAYS = [
+  {
+    dayNumber: 1,
+    dayName: "Day 1",
+    dayLabel: "DAY 01",
+    date: "Friday, July 26, 2026",
+    shortDate: "JUL 26, 2026",
+    theme: "cyan",
+    highlightText: "Reporting, Kickoff, Pitching & Sprint Launch",
+    events: [
+      {
+        time: "06:45 AM",
+        title: "Reporting",
+        type: "milestone",
+        badge: "ARRIVAL",
+        description: "Participants report to VVITU hackathon premises for attendance and desk allocation.",
+        isMilestone: true
+      },
+      {
+        time: "07:00–07:15 AM",
+        title: "Opening Ceremony",
+        type: "ceremony",
+        badge: "CEREMONY",
+        description: "Official inauguration of Naprocs Innovation Sprint 2026.",
+        isMilestone: true
+      },
+      {
+        time: "07:15–07:20 AM",
+        title: "CEO Address",
+        type: "keynote",
+        badge: "KEYNOTE",
+        description: "Address and strategic vision shared by the CEO.",
+        isMilestone: false
+      },
+      {
+        time: "07:20–07:30 AM",
+        title: "Hackathon Theme Announcement, Rules & Guidelines",
+        type: "briefing",
+        badge: "GUIDELINES",
+        description: "Official release of competition tracks, challenge statements, submission criteria, and rules.",
+        isMilestone: true
+      },
+      {
+        time: "07:30–08:30 AM",
+        title: "Idea Pitch",
+        type: "pitch",
+        badge: "PITCHING",
+        note: "10 minutes per team",
+        description: "Each team pitches their proposed software solution and architectural direction (10 mins per team).",
+        isMilestone: true
+      },
+      {
+        time: "08:45 AM",
+        title: "Coding Begins",
+        type: "code-start",
+        badge: "SPRINT START",
+        description: "Official sprint timer commences. All teams start development in their designated workspaces.",
+        isMilestone: true,
+        highlight: true
+      },
+      {
+        time: "01:00 PM",
+        title: "Lunch",
+        type: "meal",
+        badge: "MEAL BREAK",
+        description: "Catered lunch break and energy recharge for all teams.",
+        isMilestone: false
+      },
+      {
+        time: "01:45 PM",
+        title: "Code Back",
+        type: "dev",
+        badge: "SPRINT ACTIVE",
+        description: "Resume technical implementation and module building.",
+        isMilestone: false
+      },
+      {
+        time: "04:00 PM",
+        title: "Mentor Review, Session 1",
+        type: "review",
+        badge: "MENTORSHIP",
+        description: "First technical checkpoint with industry mentors for architecture review and feedback.",
+        isMilestone: true
+      },
+      {
+        time: "04:30 PM",
+        title: "Evening Coffee",
+        type: "refreshment",
+        badge: "REFRESHMENT",
+        description: "Quick coffee break and informal team discussion.",
+        isMilestone: false
+      },
+      {
+        time: "04:45 PM",
+        title: "Code Back",
+        type: "dev",
+        badge: "SPRINT ACTIVE",
+        description: "Continue feature integration, backend/AI pipelines, and frontend styling.",
+        isMilestone: false
+      },
+      {
+        time: "07:30 PM",
+        title: "Dinner",
+        type: "meal",
+        badge: "MEAL BREAK",
+        description: "Dinner served on campus for all participants and organizers.",
+        isMilestone: false
+      },
+      {
+        time: "08:15 PM",
+        title: "Code Back",
+        type: "dev",
+        badge: "NIGHT SPRINT",
+        description: "Night sprint begins; core logic stabilization and component assembly.",
+        isMilestone: false
+      },
+      {
+        time: "08:45 PM",
+        title: "Self-Review 1",
+        type: "review",
+        badge: "INTERNAL REVIEW",
+        description: "Team self-assessment on milestone progress and backlog prioritization.",
+        isMilestone: false
+      },
+      {
+        time: "09:00 PM",
+        title: "Checkpoint",
+        type: "milestone",
+        badge: "CHECKPOINT",
+        description: "Day 1 status checkpoint with the organizing committee.",
+        isMilestone: true
+      }
+    ]
+  },
+  {
+    dayNumber: 2,
+    dayName: "Day 2",
+    dayLabel: "DAY 02",
+    date: "Saturday, July 27, 2026",
+    shortDate: "JUL 27, 2026",
+    theme: "amber",
+    highlightText: "Full-Throttle Development, QA & Final Code Freeze",
+    events: [
+      {
+        time: "07:00 AM",
+        title: "Code Back",
+        type: "dev",
+        badge: "MORNING SPRINT",
+        description: "Resume development after rest; teams work on core functionalities.",
+        isMilestone: false
+      },
+      {
+        time: "08:15 AM",
+        title: "Morning Coffee",
+        type: "refreshment",
+        badge: "REFRESHMENT",
+        description: "Morning coffee and breakfast recharge.",
+        isMilestone: false
+      },
+      {
+        time: "08:30 AM",
+        title: "Code Back",
+        type: "dev",
+        badge: "SPRINT ACTIVE",
+        description: "Full integration of frontend, APIs, and AI/database layers.",
+        isMilestone: false
+      },
+      {
+        time: "01:00 PM",
+        title: "Lunch",
+        type: "meal",
+        badge: "MEAL BREAK",
+        description: "Lunch break for all participants and organizing staff.",
+        isMilestone: false
+      },
+      {
+        time: "01:45 PM",
+        title: "Code Back",
+        type: "dev",
+        badge: "SPRINT ACTIVE",
+        description: "Polishing user flows, UI/UX responsiveness, and core algorithms.",
+        isMilestone: false
+      },
+      {
+        time: "04:00 PM",
+        title: "Mentor Review, Session 2",
+        type: "review",
+        badge: "MENTORSHIP",
+        description: "Second checkpoint with mentors to test edge cases and presentation readiness.",
+        isMilestone: true
+      },
+      {
+        time: "04:30 PM",
+        title: "Evening Coffee",
+        type: "refreshment",
+        badge: "REFRESHMENT",
+        description: "Evening beverage break.",
+        isMilestone: false
+      },
+      {
+        time: "04:45 PM",
+        title: "QA & Testing",
+        type: "qa",
+        badge: "QA & TESTING",
+        description: "Rigorous quality assurance, cross-browser checks, and defect mitigation.",
+        isMilestone: true
+      },
+      {
+        time: "07:30 PM",
+        title: "Dinner",
+        type: "meal",
+        badge: "MEAL BREAK",
+        description: "Dinner served at the venue.",
+        isMilestone: false
+      },
+      {
+        time: "08:15 PM",
+        title: "Code Back / Bug Fix",
+        type: "dev",
+        badge: "BUG SQUASHING",
+        description: "Final bug squashing, documentation sync, and pre-freeze verification.",
+        isMilestone: false
+      },
+      {
+        time: "08:45 PM",
+        title: "Self-Review 2",
+        type: "review",
+        badge: "INTERNAL REVIEW",
+        description: "Final team self-check before strict source code lock.",
+        isMilestone: false
+      },
+      {
+        time: "09:00 PM",
+        title: "Final Code Freeze",
+        type: "freeze",
+        badge: "MAJOR MILESTONE",
+        description: "Strict code freeze. All commit activity on development repositories must cease.",
+        isMilestone: true,
+        highlight: true
+      }
+    ]
+  },
+  {
+    dayNumber: 3,
+    dayName: "Day 3",
+    dayLabel: "DAY 03",
+    date: "Sunday, July 28, 2026",
+    shortDate: "JUL 28, 2026",
+    theme: "purple",
+    highlightText: "Presentation Prep, Final Freeze, Demos & Closing Ceremony",
+    events: [
+      {
+        time: "07:00 AM",
+        title: "Presentation & Report Preparation",
+        type: "prep",
+        badge: "DOCS & SLIDES",
+        description: "Teams finalize their PPT pitch decks, BRD documentation, architecture diagrams, and submission assets.",
+        isMilestone: false
+      },
+      {
+        time: "08:15 AM",
+        title: "Morning Coffee",
+        type: "refreshment",
+        badge: "REFRESHMENT",
+        description: "Morning coffee and final setup.",
+        isMilestone: false
+      },
+      {
+        time: "08:30 AM",
+        title: "Work Back",
+        type: "dev",
+        badge: "FINAL POLISH",
+        description: "Final rehearsal of presentation delivery and verification of demo environment.",
+        isMilestone: false
+      },
+      {
+        time: "09:45 AM",
+        title: "Final Freeze",
+        type: "freeze",
+        badge: "ABSOLUTE LOCK",
+        description: "All presentation slides, BRDs, architecture diagrams, and submission deliverables are locked.",
+        isMilestone: true,
+        highlight: true
+      },
+      {
+        time: "09:50 AM",
+        title: "Introduction of Judges Panel",
+        type: "ceremony",
+        badge: "PANEL INTRO",
+        description: "Official introduction and welcoming of the distinguished evaluation jury.",
+        isMilestone: true
+      },
+      {
+        time: "10:00 AM",
+        title: "Final Project Presentation, Live Demo & Judges Evaluation",
+        type: "pitch",
+        badge: "GRAND EVALUATION",
+        note: "10 min presentation • 5 min demo • 10 min Q&A",
+        description: "Each team presents to the panel: 10 minutes maximum presentation, 5 minutes live demonstration, and 10 minutes judges' analysis & Q&A.",
+        isMilestone: true,
+        highlight: true
+      },
+      {
+        time: "11:00 AM",
+        title: "Closing Ceremony",
+        type: "ceremony",
+        badge: "VALEDICTORY",
+        description: "Winner trophy announcement, certificates of excellence, exciting rewards, CEO recognition, and conclusion.",
+        isMilestone: true,
+        highlight: true
+      }
+    ]
+  }
+];
+
 export const DEFAULT_SCHEDULE = [
   {
-    date: "October 26, 2026",
-    time: "STAGE 01",
-    title: "KICKOFF",
-    description: "Begin the INNOSPRINT challenge: Registration and check-in, opening ceremony, problem briefing, and team readiness.",
-    location: "VVIT University, Guntur"
+    date: "July 26, 2026",
+    time: "06:45 AM – 08:45 AM",
+    title: "DAY 1: REPORTING, KICKOFF & PITCHING",
+    description: "06:45 AM Reporting, Opening Ceremony, CEO Address, Theme & Rules Announcement, Team Idea Pitch (10m per team), and 08:45 AM Coding Begins.",
+    location: "VVITU Campus"
   },
   {
-    date: "October 26–27, 2026",
-    time: "STAGE 02",
-    title: "BUILD",
-    description: "Transform ideas into working prototypes using permitted AI, robotics, and technology tools with teammate collaboration and mentor support.",
-    location: "Innovation Arenas"
+    date: "July 26, 2026",
+    time: "08:45 AM – 09:00 PM",
+    title: "DAY 1: SPRINT SESSIONS & MENTOR REVIEW",
+    description: "Intensive coding blocks with lunch & dinner breaks, Mentor Review Session 1 at 04:00 PM, Self-Review 1 at 08:45 PM, and Day 1 Checkpoint at 09:00 PM.",
+    location: "Sprint Arena"
   },
   {
-    date: "October 27–28, 2026",
-    time: "STAGE 03",
-    title: "REFINE",
-    description: "Test and debug, improve performance, validate core features, prepare demonstration and presentation, and finalize documentation.",
-    location: "Sprint Labs"
+    date: "July 27, 2026",
+    time: "07:00 AM – 04:45 PM",
+    title: "DAY 2: DEEP BUILD & MENTOR REVIEW 2",
+    description: "Morning sprint resume, Mentor Review Session 2 at 04:00 PM, and scheduled coffee & meal recharges throughout the day.",
+    location: "Sprint Arena"
   },
   {
-    date: "October 28, 2026",
-    time: "TIME TO BE ANNOUNCED",
-    title: "CODE FREEZE",
-    description: "Finalize source code, submit GitHub repository, upload demonstration video (max 3 minutes), and prepare final pitch.",
-    location: "Official Submission Portal"
+    date: "July 27, 2026",
+    time: "04:45 PM – 09:00 PM",
+    title: "DAY 2: QA, TESTING & FINAL CODE FREEZE",
+    description: "04:45 PM QA & Testing, Dinner at 07:30 PM, Bug fixing, Self-Review 2 at 08:45 PM, and 09:00 PM Final Code Freeze.",
+    location: "Sprint Arena"
   },
   {
-    date: "October 28, 2026",
-    time: "OFFICIAL SCHEDULE",
-    title: "PITCH & JUDGING",
-    description: "Live project demonstration, presentation to the judges, technical and practical evaluation, and results announcement.",
-    location: "Judging Arena"
+    date: "July 28, 2026",
+    time: "07:00 AM – 09:45 AM",
+    title: "DAY 3: PRESENTATION PREP & FINAL FREEZE",
+    description: "07:00 AM Presentation & Report Prep, Coffee recharge, Work Back, and 09:45 AM Final Freeze (slides, BRD & deliverables lock).",
+    location: "Auditorium / Media Lab"
+  },
+  {
+    date: "July 28, 2026",
+    time: "09:50 AM – 11:00 AM",
+    title: "DAY 3: LIVE DEMOS, EVALUATION & CLOSING CEREMONY",
+    description: "09:50 AM Judges Panel Intro, 10:00 AM Final Presentation (10m pitch, 5m live demo, 10m Q&A per team), followed by 11:00 AM Closing Ceremony & Awards.",
+    location: "Main Auditorium, VVITU"
   }
 ];
 

@@ -407,63 +407,7 @@ export function StaggeredGrid({
           </div>
         </div>
 
-        {/* COLLABORATION BANNER (INDUSTRY × INSTITUTION × INNOVATION) */}
-        <div className="relative rounded-2xl p-6 sm:p-7 bg-gradient-to-r from-gray-950 via-cyan-950/40 to-gray-950 border border-cyan-500/30 overflow-hidden shadow-xl">
-          {/* Subtle connecting pulse glow */}
-          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-px bg-gradient-to-r from-transparent via-cyan-500/40 to-transparent pointer-events-none" />
-          
-          <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="text-center md:text-left max-w-xl">
-              <div className="flex items-center justify-center md:justify-start gap-2 text-xs font-mono text-cyan-400 uppercase tracking-widest font-semibold mb-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
-                <span>PARTNERSHIP ARCHITECTURE</span>
-              </div>
-              <h4 className="text-lg sm:text-xl font-black uppercase text-white font-heading tracking-wide">
-                INDUSTRY <span className="text-amber-400">×</span> INSTITUTION <span className="text-cyan-400">×</span> INNOVATION
-              </h4>
-              <p className="text-xs sm:text-sm text-gray-300 font-body mt-1 leading-relaxed">
-                Connecting technology expertise with VVIT's student innovators to build practical solutions in AI, robotics, and software.
-              </p>
-            </div>
 
-            {/* Horizontal Visual Graphic */}
-            <div className="flex items-center gap-2 sm:gap-3 text-center">
-              {/* NAPROCS Node */}
-              <div className="px-3.5 py-2 rounded-xl bg-amber-950/70 border border-amber-500/50 shadow-md">
-                <span className="block text-[11px] font-mono text-amber-300 font-bold">NAPROCS</span>
-                <span className="block text-[9px] text-gray-400 uppercase font-mono">Industry Partner</span>
-              </div>
-
-              {/* Connector line 1 */}
-              <div className="hidden sm:flex items-center w-6 lg:w-10">
-                <div className="w-full h-0.5 bg-gradient-to-r from-amber-500 to-cyan-500 relative">
-                  <div className="w-1.5 h-1.5 rounded-full bg-white absolute -top-0.5 left-1/2 -translate-x-1/2 animate-pulse" />
-                </div>
-              </div>
-              <span className="sm:hidden text-gray-500 text-xs">×</span>
-
-              {/* VVITU Node */}
-              <div className="px-3.5 py-2 rounded-xl bg-cyan-950/80 border border-cyan-500/60 shadow-md">
-                <span className="block text-[11px] font-mono text-cyan-300 font-bold">VVIT</span>
-                <span className="block text-[9px] text-gray-400 uppercase font-mono">Host Institution</span>
-              </div>
-
-              {/* Connector line 2 */}
-              <div className="hidden sm:flex items-center w-6 lg:w-10">
-                <div className="w-full h-0.5 bg-gradient-to-r from-cyan-500 to-purple-500 relative">
-                  <div className="w-1.5 h-1.5 rounded-full bg-white absolute -top-0.5 left-1/2 -translate-x-1/2 animate-pulse" />
-                </div>
-              </div>
-              <span className="sm:hidden text-gray-500 text-xs">×</span>
-
-              {/* Councils Node */}
-              <div className="px-3.5 py-2 rounded-xl bg-purple-950/70 border border-purple-500/50 shadow-md">
-                <span className="block text-[11px] font-mono text-purple-300 font-bold">VVISC • IIC • E-CELL</span>
-                <span className="block text-[9px] text-gray-400 uppercase font-mono">Student Ecosystem</span>
-              </div>
-            </div>
-          </div>
-        </div>
       </section>
 
       {/* 2. SECTION HEADER WITH GSAP ANIMATED TITLE */}
