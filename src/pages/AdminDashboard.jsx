@@ -325,6 +325,84 @@ export default function AdminDashboard() {
     }
   };
 
+  // Handle registration deletion (permanently delete unwanted registration/team)
+  const handleDeleteRegistration = async (regItem) => {
+    if (!regItem) return false;
+    const regId = typeof regItem === 'object' ? regItem.id : regItem;
+    const refCode = typeof regItem === 'object' ? regItem.reference_code : regItem;
+    const teamId = typeof regItem === 'object' ? (regItem.team_id || regItem.teams?.id) : null;
+
+    if (isSupabaseConfigured) {
+      try {
+        // 1. Delete associated team_members and teams if any
+        if (teamId) {
+          try {
+            await supabase.from('team_members').delete().eq('team_id', teamId);
+            await supabase.from('teams').delete().eq('id', teamId);
+          } catch (teamErr) {
+            console.warn('[Admin] Notice deleting team/team_members:', teamErr);
+          }
+        }
+
+        // 2. Delete certificates if any
+        if (refCode || regId) {
+          try {
+            let certQuery = supabase.from('certificates').delete();
+            if (refCode) certQuery = certQuery.eq('reference_code', refCode);
+            else if (regId) certQuery = certQuery.eq('registration_id', regId);
+            await certQuery;
+          } catch (certErr) {
+            console.warn('[Admin] Notice deleting certificates:', certErr);
+          }
+        }
+
+        // 3. Delete from registrations
+        let query = supabase.from('registrations').delete();
+        if (regId) {
+          query = query.eq('id', regId);
+        } else {
+          query = query.eq('reference_code', refCode);
+        }
+
+        const { error: regErr } = await query;
+        if (regErr) {
+          console.error('[Admin] Error deleting registration from Supabase:', regErr);
+          throw regErr;
+        }
+      } catch (err) {
+        console.error('[Admin] Delete operation failed:', err);
+        alert('Failed to delete registration: ' + (err.message || 'Database error'));
+        return false;
+      }
+    }
+
+    // Always update localStorage fallback
+    try {
+      const localRegs = JSON.parse(localStorage.getItem('inno_sprint_registrations') || '[]');
+      const updatedLocal = localRegs.filter(
+        (r) => !(r.id === regId || (refCode && r.reference_code === refCode))
+      );
+      localStorage.setItem('inno_sprint_registrations', JSON.stringify(updatedLocal));
+    } catch (e) {
+      console.warn('[Admin] localStorage deletion notice:', e);
+    }
+
+    // Update in-memory state
+    setRegistrations((prev) =>
+      prev.filter((r) => !(r.id === regId || (refCode && r.reference_code === refCode)))
+    );
+
+    // Close modal if open for this registration
+    setSelectedRegistration((prev) => {
+      if (prev && (prev.id === regId || (refCode && prev.reference_code === refCode))) {
+        return null;
+      }
+      return prev;
+    });
+
+    return true;
+  };
+
   // Export registrations CSV
   const exportCSV = () => {
     const headers = [
@@ -438,6 +516,7 @@ export default function AdminDashboard() {
               registrations={registrations}
               onSelectRegistration={(reg) => setSelectedRegistration(reg)}
               onUpdateStatus={handleUpdateStatus}
+              onDeleteRegistration={handleDeleteRegistration}
               exportCSV={exportCSV}
             />
           )}
@@ -446,6 +525,7 @@ export default function AdminDashboard() {
             <TeamsTab
               teamCards={teamCards}
               onSelectRegistration={(reg) => setSelectedRegistration(reg)}
+              onDeleteRegistration={handleDeleteRegistration}
               onOpenCertificateModal={(member) => {
                 setTab('certificates');
               }}
@@ -516,6 +596,7 @@ export default function AdminDashboard() {
         registration={selectedRegistration}
         onClose={() => setSelectedRegistration(null)}
         onUpdateStatus={handleUpdateStatus}
+        onDeleteRegistration={handleDeleteRegistration}
       />
     </div>
   );

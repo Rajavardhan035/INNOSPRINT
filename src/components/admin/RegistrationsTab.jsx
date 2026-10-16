@@ -16,13 +16,15 @@ import {
   AlertCircle,
   Users,
   RotateCcw,
-  Calendar
+  Calendar,
+  Trash2
 } from 'lucide-react';
 
 export default function RegistrationsTab({
   registrations = [],
   onSelectRegistration,
   onUpdateStatus,
+  onDeleteRegistration,
   exportCSV
 }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -33,6 +35,8 @@ export default function RegistrationsTab({
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [copiedCode, setCopiedCode] = useState('');
+  const [regToDelete, setRegToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const copyRefCode = (code) => {
     if (!code) return;
@@ -426,6 +430,17 @@ export default function RegistrationsTab({
                           >
                             <X className="w-3.5 h-3.5" />
                           </button>
+
+                          {/* Quick Delete */}
+                          {onDeleteRegistration && (
+                            <button
+                              onClick={() => setRegToDelete(reg)}
+                              className="p-1.5 rounded-md transition-colors bg-[#111B2D] hover:bg-rose-950/80 border border-[#1D2A40] hover:border-rose-500/60 text-slate-400 hover:text-rose-400"
+                              title="Delete Registration Record"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -469,6 +484,89 @@ export default function RegistrationsTab({
           )}
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {regToDelete && (
+        <div 
+          className="fixed inset-0 z-[120] bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn"
+          onClick={() => !isDeleting && setRegToDelete(null)}
+        >
+          <div 
+            className="bg-[#0D1424] border border-rose-500/50 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl relative animate-scaleIn text-left"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center space-x-3 text-rose-400">
+              <div className="p-2.5 rounded-xl bg-rose-950/80 border border-rose-500/40 flex-shrink-0">
+                <Trash2 className="w-6 h-6 text-rose-400" />
+              </div>
+              <div>
+                <h3 className="text-base sm:text-lg font-bold text-white font-heading">Delete Registration</h3>
+                <p className="text-xs text-slate-400">Permanently remove registration & team</p>
+              </div>
+            </div>
+
+            <div className="space-y-2 text-xs sm:text-sm text-slate-300">
+              <p>
+                Are you sure you want to permanently delete registration{' '}
+                <strong className="text-cyan-400 font-mono">{regToDelete.reference_code || 'N/A'}</strong>?
+              </p>
+              <div className="p-3 rounded-xl bg-[#111B2D] border border-[#1D2A40] space-y-1 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Applicant:</span>
+                  <strong className="text-white">
+                    {regToDelete.applicant_name || regToDelete.profiles?.full_name || regToDelete.user_name || 'N/A'}
+                  </strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Team:</span>
+                  <strong className="text-violet-300">
+                    {regToDelete.teams?.team_name || (regToDelete.participation_type === 'team' ? 'Squad' : 'Individual')}
+                  </strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Track:</span>
+                  <span className="text-slate-300">{regToDelete.theme || 'Open Innovation'}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-lg bg-rose-950/40 border border-rose-500/30 text-xs text-rose-200 flex items-start space-x-2">
+              <AlertCircle className="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" />
+              <span>
+                <strong>Warning:</strong> This will permanently delete the registration record, any associated team and member records, and uploaded files.
+              </span>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setRegToDelete(null)}
+                className="px-4 py-2 rounded-lg bg-[#111B2D] hover:bg-[#162238] border border-[#1D2A40] text-slate-300 hover:text-white text-xs font-semibold transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={async () => {
+                  if (!onDeleteRegistration || !regToDelete) return;
+                  setIsDeleting(true);
+                  const ok = await onDeleteRegistration(regToDelete);
+                  setIsDeleting(false);
+                  if (ok) {
+                    setRegToDelete(null);
+                  }
+                }}
+                className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold flex items-center space-x-1.5 shadow-lg shadow-rose-950 transition-all disabled:opacity-50"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{isDeleting ? 'Deleting...' : 'Delete Permanently'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

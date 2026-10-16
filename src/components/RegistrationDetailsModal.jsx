@@ -2,16 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { 
   X, Copy, Check, ExternalLink, Download, FileText, Image as ImageIcon, 
   Shield, Users, Mail, Phone, School, BookOpen, Layers, CheckCircle2, 
-  Clock, XCircle, AlertCircle, Eye, Sparkles, Building, Presentation
+  Clock, XCircle, AlertCircle, Eye, Sparkles, Building, Presentation,
+  Trash2
 } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
-export default function RegistrationDetailsModal({ registration, onClose, onUpdateStatus }) {
+export default function RegistrationDetailsModal({ registration, onClose, onUpdateStatus, onDeleteRegistration }) {
   const [copiedRef, setCopiedRef] = useState(false);
   const [copiedEmail, setCopiedEmail] = useState(false);
   const [teamMembers, setTeamMembers] = useState([]);
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [imagePreview, setImagePreview] = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (!registration) return;
@@ -478,57 +481,113 @@ export default function RegistrationDetailsModal({ registration, onClose, onUpda
           </div>
         </div>
 
-        {/* MODAL STICKY FOOTER (APPROVAL CONTROLS) */}
-        <div className="p-4 sm:p-5 bg-[#0D1424] border-t border-[#1D2A40] flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center space-x-2 text-xs">
-            <span className="text-slate-400 font-medium">Status:</span>
-            {getStatusBadge(currentStatus)}
-          </div>
+        {/* MODAL STICKY FOOTER (APPROVAL CONTROLS & DELETE) */}
+        <div className="p-4 sm:p-5 bg-[#0D1424] border-t border-[#1D2A40] flex flex-col gap-3">
+          {showDeleteConfirm ? (
+            <div className="p-3.5 rounded-xl bg-rose-950/70 border border-rose-500/50 flex flex-col sm:flex-row items-center justify-between gap-3 animate-fadeIn">
+              <div className="flex items-center space-x-2.5 text-xs text-rose-200">
+                <AlertCircle className="w-5 h-5 text-rose-400 flex-shrink-0" />
+                <div>
+                  <span className="font-bold text-white block">Permanently delete this registration?</span>
+                  <span className="text-[11px] text-rose-300">
+                    Removes team <strong className="text-white">{teamName || applicantName}</strong> ({refCode}) and all member records. This cannot be undone.
+                  </span>
+                </div>
+              </div>
 
-          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
-            <button
-              onClick={() => onUpdateStatus(registration, 'approved')}
-              className={`py-1.5 px-3.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all ${
-                currentStatus === 'approved'
-                  ? 'bg-emerald-500 text-[#070b14]'
-                  : 'bg-[#111B2D] hover:bg-emerald-950/60 border border-[#1D2A40] hover:border-emerald-500/50 text-emerald-400'
-              }`}
-            >
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>{currentStatus === 'approved' ? 'Approved' : 'Approve'}</span>
-            </button>
+              <div className="flex items-center space-x-2 self-end sm:self-center flex-shrink-0">
+                <button
+                  type="button"
+                  disabled={isDeleting}
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="px-3 py-1.5 rounded-lg bg-[#111B2D] hover:bg-[#162238] border border-[#1D2A40] text-slate-300 hover:text-white text-xs font-semibold transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isDeleting}
+                  onClick={async () => {
+                    if (!onDeleteRegistration) return;
+                    setIsDeleting(true);
+                    const success = await onDeleteRegistration(registration);
+                    setIsDeleting(false);
+                    if (success) {
+                      onClose();
+                    }
+                  }}
+                  className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold flex items-center space-x-1.5 shadow-lg shadow-rose-950 transition-all disabled:opacity-50"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>{isDeleting ? 'Deleting...' : 'Delete Permanently'}</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center space-x-2 text-xs">
+                <span className="text-slate-400 font-medium">Status:</span>
+                {getStatusBadge(currentStatus)}
+              </div>
 
-            <button
-              onClick={() => onUpdateStatus(registration, 'waitlisted')}
-              className={`py-1.5 px-3 rounded-lg text-xs font-medium flex items-center space-x-1.5 transition-all ${
-                currentStatus === 'waitlisted'
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-[#111B2D] hover:bg-blue-950/60 border border-[#1D2A40] hover:border-blue-500/50 text-blue-300'
-              }`}
-            >
-              <Clock className="w-3.5 h-3.5" />
-              <span>Waitlist</span>
-            </button>
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+                <button
+                  onClick={() => onUpdateStatus(registration, 'approved')}
+                  className={`py-1.5 px-3.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all ${
+                    currentStatus === 'approved'
+                      ? 'bg-emerald-500 text-[#070b14]'
+                      : 'bg-[#111B2D] hover:bg-emerald-950/60 border border-[#1D2A40] hover:border-emerald-500/50 text-emerald-400'
+                  }`}
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>{currentStatus === 'approved' ? 'Approved' : 'Approve'}</span>
+                </button>
 
-            <button
-              onClick={() => onUpdateStatus(registration, 'rejected')}
-              className={`py-1.5 px-3 rounded-lg text-xs font-medium flex items-center space-x-1.5 transition-all ${
-                currentStatus === 'rejected'
-                  ? 'bg-rose-500 text-white'
-                  : 'bg-[#111B2D] hover:bg-rose-950/60 border border-[#1D2A40] hover:border-rose-500/50 text-rose-300'
-              }`}
-            >
-              <XCircle className="w-3.5 h-3.5" />
-              <span>Reject</span>
-            </button>
+                <button
+                  onClick={() => onUpdateStatus(registration, 'waitlisted')}
+                  className={`py-1.5 px-3 rounded-lg text-xs font-medium flex items-center space-x-1.5 transition-all ${
+                    currentStatus === 'waitlisted'
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-[#111B2D] hover:bg-blue-950/60 border border-[#1D2A40] hover:border-blue-500/50 text-blue-300'
+                  }`}
+                >
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>Waitlist</span>
+                </button>
 
-            <button
-              onClick={onClose}
-              className="py-1.5 px-3 rounded-lg bg-[#111B2D] hover:bg-[#162238] border border-[#1D2A40] text-slate-300 hover:text-white font-medium text-xs transition-colors"
-            >
-              Close
-            </button>
-          </div>
+                <button
+                  onClick={() => onUpdateStatus(registration, 'rejected')}
+                  className={`py-1.5 px-3 rounded-lg text-xs font-medium flex items-center space-x-1.5 transition-all ${
+                    currentStatus === 'rejected'
+                      ? 'bg-rose-500 text-white'
+                      : 'bg-[#111B2D] hover:bg-rose-950/60 border border-[#1D2A40] hover:border-rose-500/50 text-rose-300'
+                  }`}
+                >
+                  <XCircle className="w-3.5 h-3.5" />
+                  <span>Reject</span>
+                </button>
+
+                {/* Delete Registration Option */}
+                {onDeleteRegistration && (
+                  <button
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="py-1.5 px-3 rounded-lg bg-rose-950/30 hover:bg-rose-900/60 border border-rose-500/40 text-rose-300 hover:text-white font-medium text-xs flex items-center space-x-1.5 transition-colors"
+                    title="Delete this unwanted registration"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                    <span>Delete</span>
+                  </button>
+                )}
+
+                <button
+                  onClick={onClose}
+                  className="py-1.5 px-3 rounded-lg bg-[#111B2D] hover:bg-[#162238] border border-[#1D2A40] text-slate-300 hover:text-white font-medium text-xs transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
       </div>
