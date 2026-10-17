@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   MessageSquare,
   Search,
@@ -9,9 +10,15 @@ import {
   Copy,
   RefreshCw,
   X,
-  FileText
+  FileText,
+  Send,
+  AlertCircle,
+  Inbox
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
+import CountUp from './shared/CountUp';
+import { springUI } from '../../styles/motionConfig';
 
 export default function MessagesTab({
   contactMessages = [],
@@ -24,20 +31,14 @@ export default function MessagesTab({
   const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'new' | 'in_progress' | 'resolved'
   const [copiedCode, setCopiedCode] = useState('');
   const [selectedMessage, setSelectedMessage] = useState(null);
-  const [actionToast, setActionToast] = useState('');
   const [statusUpdatingId, setStatusUpdatingId] = useState(null);
-
-  const showToast = (msg) => {
-    setActionToast(msg);
-    setTimeout(() => setActionToast(''), 3000);
-  };
 
   const copyRef = (code, e) => {
     if (e) e.stopPropagation();
     if (!code) return;
     navigator.clipboard.writeText(code);
     setCopiedCode(code);
-    showToast(`Copied ${code} to clipboard`);
+    toast.success(`Copied ticket ref: ${code}`);
     setTimeout(() => setCopiedCode(''), 2000);
   };
 
@@ -66,16 +67,15 @@ export default function MessagesTab({
       setContactMessages(updated);
       localStorage.setItem('inno_sprint_contact_messages', JSON.stringify(updated));
 
-      // Also update selected message modal if open
       if (selectedMessage && (selectedMessage.id === msgId || selectedMessage.reference_code === msgId)) {
         setSelectedMessage({ ...selectedMessage, status: newStatus });
       }
 
       const statusLabels = { new: 'New', in_progress: 'In Progress', resolved: 'Resolved' };
-      showToast(`Status updated to ${statusLabels[newStatus] || newStatus}`);
+      toast.success(`Status updated to ${statusLabels[newStatus] || newStatus}`);
     } catch (err) {
       console.error('[MessagesTab status error]:', err);
-      showToast('Failed to update status');
+      toast.error('Failed to update status');
     } finally {
       setStatusUpdatingId(null);
     }
@@ -118,30 +118,24 @@ export default function MessagesTab({
   ).length;
 
   return (
-    <div className="space-y-5 animate-fadeIn font-body">
-      {/* Action Toast Feedback */}
-      {actionToast && (
-        <div className="fixed bottom-6 right-6 z-50 px-4 py-2.5 rounded-xl bg-cyan-950/95 border border-cyan-400 text-cyan-200 text-xs font-mono font-semibold shadow-2xl flex items-center gap-2 animate-bounce">
-          <CheckCircle2 className="w-4 h-4 text-cyan-400" />
-          <span>{actionToast}</span>
-        </div>
-      )}
-
+    <div className="space-y-5 font-body">
       {/* Header & Filter Bar */}
-      <div className="p-4 sm:p-5 rounded-xl bg-[#0D1424] border border-[#1D2A40] space-y-4">
+      <div className="p-5 rounded-2xl bg-gradient-to-b from-[#0e1629]/90 to-[#070b14]/90 border border-white/10 backdrop-blur-xl shadow-xl space-y-4">
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
           <div className="space-y-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <MessageSquare className="w-4 h-4 text-violet-400" />
+            <div className="flex flex-wrap items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-violet-500/10 border border-violet-500/30 text-violet-400">
+                <Inbox className="w-5 h-5" />
+              </div>
               <h2 className="text-lg font-bold text-white font-heading tracking-tight">
-                Contact Form Inquiries & Support Tickets
+                Support Desk & Queries
               </h2>
-              <span className="px-2 py-0.5 rounded-full bg-[#111B2D] border border-amber-500/30 text-[10px] font-mono text-amber-300">
-                {newCount} New
+              <span className="px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-[11px] font-mono text-amber-300">
+                <CountUp value={newCount} /> New
               </span>
               {inProgressCount > 0 && (
-                <span className="px-2 py-0.5 rounded-full bg-[#111B2D] border border-cyan-500/30 text-[10px] font-mono text-cyan-300">
-                  {inProgressCount} In Progress
+                <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-[11px] font-mono text-cyan-300">
+                  <CountUp value={inProgressCount} /> In Progress
                 </span>
               )}
             </div>
@@ -159,7 +153,7 @@ export default function MessagesTab({
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search sender, topic, ref..."
-                className="w-full pl-10 pr-4 py-2 rounded-lg bg-[#070b14] border border-[#1D2A40] text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 transition-colors"
+                className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[#060912]/80 border border-white/10 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400/60 font-mono transition-all"
               />
             </div>
 
@@ -167,7 +161,7 @@ export default function MessagesTab({
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2 rounded-lg bg-[#070b14] border border-[#1D2A40] text-xs text-slate-300 focus:outline-none focus:border-cyan-400 transition-colors"
+              className="px-3 py-2.5 rounded-xl bg-[#060912]/80 border border-white/10 text-xs text-slate-300 focus:outline-none focus:border-cyan-400/60 transition-all cursor-pointer"
             >
               <option value="all">All ({contactMessages.length})</option>
               <option value="new">New ({newCount})</option>
@@ -177,14 +171,16 @@ export default function MessagesTab({
 
             {/* Manual Refresh Button */}
             {onRefreshMessages && (
-              <button
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={onRefreshMessages}
                 disabled={loading}
                 title="Refresh Enquiries from Database"
-                className="p-2 rounded-lg bg-[#070b14] border border-[#1D2A40] text-slate-400 hover:text-cyan-300 hover:border-cyan-500/50 transition-colors disabled:opacity-50"
+                className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-cyan-300 hover:border-cyan-500/50 transition-colors disabled:opacity-50"
               >
                 <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-cyan-400' : ''}`} />
-              </button>
+              </motion.button>
             )}
           </div>
         </div>
@@ -193,37 +189,40 @@ export default function MessagesTab({
       {/* Messages List */}
       <div className="space-y-3.5">
         {loading && contactMessages.length === 0 ? (
-          <div className="p-12 text-center rounded-xl bg-[#0D1424] border border-[#1D2A40] text-slate-400">
+          <div className="p-16 text-center rounded-2xl bg-[#0e1629]/80 border border-white/10 text-slate-400 shadow-xl">
             <RefreshCw className="w-8 h-8 mx-auto text-cyan-400 animate-spin mb-3" />
             <p className="text-sm font-semibold text-slate-300 font-heading">Loading contact enquiries from Supabase...</p>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="p-12 text-center rounded-xl bg-[#0D1424] border border-[#1D2A40] text-slate-400">
-            <MessageSquare className="w-8 h-8 mx-auto text-slate-600 mb-2" />
+          <div className="p-16 text-center rounded-2xl bg-gradient-to-b from-[#0e1629]/80 to-[#070b14]/90 border border-white/10 text-slate-400 shadow-xl">
+            <MessageSquare className="w-10 h-10 mx-auto text-slate-600 mb-3" />
             <p className="text-sm font-semibold text-slate-300 font-heading">No contact inquiries match your criteria.</p>
             <p className="text-xs text-slate-500 mt-1">Submitted messages from the public Contact page will appear here.</p>
           </div>
         ) : (
-          filtered.map((msg) => {
+          filtered.map((msg, idx) => {
             const status = (msg.status || 'new').toLowerCase();
             const isResolved = status === 'resolved';
             const isInProgress = status === 'in_progress';
             const isUpdating = statusUpdatingId === (msg.id || msg.reference_code);
 
             return (
-              <div
+              <motion.div
                 key={msg.id || msg.reference_code}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2, delay: idx * 0.02 }}
                 onClick={() => setSelectedMessage(msg)}
-                className="p-5 rounded-xl bg-[#0D1424] border border-[#1D2A40] hover:border-cyan-500/40 hover:bg-[#0f182c] space-y-3.5 transition-all cursor-pointer group shadow-sm hover:shadow-md"
+                className="p-5 rounded-2xl bg-gradient-to-b from-[#0e1629]/90 to-[#070b14]/90 border border-white/10 hover:border-cyan-500/40 space-y-3.5 transition-all cursor-pointer group shadow-xl backdrop-blur-xl"
               >
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-[#1D2A40] pb-3">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-white/5 pb-3">
                   <div className="space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
                       {msg.reference_code && (
                         <button
                           onClick={(e) => copyRef(msg.reference_code, e)}
                           title="Click to copy reference code"
-                          className="font-mono text-xs font-bold text-cyan-400 flex items-center gap-1 hover:underline px-1.5 py-0.5 rounded bg-cyan-950/60 border border-cyan-500/30"
+                          className="font-mono text-xs font-bold text-cyan-400 flex items-center gap-1 hover:underline px-2 py-0.5 rounded-lg bg-cyan-500/10 border border-cyan-500/30"
                         >
                           <span>{msg.reference_code}</span>
                           {copiedCode === msg.reference_code ? (
@@ -234,12 +233,12 @@ export default function MessagesTab({
                         </button>
                       )}
 
-                      <h4 className="text-sm font-bold text-white group-hover:text-cyan-300 transition-colors">
-                        {msg.subject || 'General Enquiry'}
+                      <h4 className="text-sm font-bold text-white group-hover:text-cyan-300 transition-colors font-heading">
+                        {msg.subject || 'General Inquiry'}
                       </h4>
 
                       {msg.registration_id_ref && (
-                        <span className="text-[10px] font-mono text-amber-300 px-2 py-0.5 rounded bg-amber-950/50 border border-amber-500/30">
+                        <span className="text-[10px] font-mono text-amber-300 px-2 py-0.5 rounded-lg bg-amber-500/10 border border-amber-500/30">
                           Ref: {msg.registration_id_ref}
                         </span>
                       )}
@@ -263,12 +262,12 @@ export default function MessagesTab({
                   {/* Status Pills & Actions */}
                   <div className="flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                     <span
-                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold tracking-wide uppercase ${
+                      className={`px-3 py-1 rounded-full text-[10px] font-mono font-bold tracking-wider uppercase ${
                         isResolved
-                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                          ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
                           : isInProgress
-                          ? 'bg-cyan-500/10 text-cyan-300 border border-cyan-500/30'
-                          : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                          ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30'
+                          : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
                       }`}
                     >
                       {isResolved ? 'Resolved' : isInProgress ? 'In Progress' : 'New'}
@@ -280,7 +279,7 @@ export default function MessagesTab({
                         <button
                           onClick={(e) => handleMessageStatus(msg.id || msg.reference_code, 'in_progress', e)}
                           disabled={isUpdating}
-                          className="px-2.5 py-1 rounded-md bg-[#111B2D] hover:bg-cyan-950/60 border border-[#1D2A40] hover:border-cyan-500/50 text-cyan-300 text-xs font-medium transition-colors"
+                          className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-cyan-500/20 border border-white/10 hover:border-cyan-500/40 text-cyan-300 text-xs font-medium transition-colors"
                         >
                           In Progress
                         </button>
@@ -290,7 +289,7 @@ export default function MessagesTab({
                         <button
                           onClick={(e) => handleMessageStatus(msg.id || msg.reference_code, 'resolved', e)}
                           disabled={isUpdating}
-                          className="px-2.5 py-1 rounded-md bg-[#111B2D] hover:bg-emerald-950/60 border border-[#1D2A40] hover:border-emerald-500/50 text-emerald-400 text-xs font-medium flex items-center gap-1 transition-colors"
+                          className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-semibold flex items-center gap-1 transition-colors"
                         >
                           <Check className="w-3.5 h-3.5" />
                           <span>Resolve</span>
@@ -299,7 +298,7 @@ export default function MessagesTab({
                         <button
                           onClick={(e) => handleMessageStatus(msg.id || msg.reference_code, 'new', e)}
                           disabled={isUpdating}
-                          className="px-2.5 py-1 rounded-md bg-[#111B2D] hover:bg-[#162238] border border-[#1D2A40] text-slate-400 hover:text-white text-xs font-medium transition-colors"
+                          className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white text-xs font-medium transition-colors"
                         >
                           Reopen
                         </button>
@@ -309,21 +308,21 @@ export default function MessagesTab({
                 </div>
 
                 {/* Message Snippet */}
-                <div className="p-3.5 rounded-lg bg-[#111B2D] border border-[#1D2A40] text-xs text-slate-300 leading-relaxed font-normal">
+                <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/5 text-xs text-slate-300 leading-relaxed font-normal">
                   "{msg.message}"
                 </div>
 
                 {/* Card Footer */}
                 <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono text-slate-500 pt-0.5">
                   <span className="flex items-center gap-1.5">
-                    <Clock className="w-3 h-3 text-slate-500" />
+                    <Clock className="w-3.5 h-3.5 text-slate-500" />
                     <span>Logged: {msg.created_at ? new Date(msg.created_at).toLocaleString() : 'Just now'}</span>
                   </span>
 
                   <div className="flex items-center gap-3">
                     <span className="text-cyan-400 text-xs flex items-center gap-1 group-hover:underline">
                       <FileText className="w-3.5 h-3.5" />
-                      <span>View Details</span>
+                      <span>View Dossier</span>
                     </span>
                     <a
                       href={`mailto:${msg.email}?subject=RE: INNOSPRINT - ${encodeURIComponent(msg.subject || 'Inquiry')}`}
@@ -331,125 +330,98 @@ export default function MessagesTab({
                       className="text-amber-400 hover:underline flex items-center gap-1 font-medium font-body text-xs"
                     >
                       <Mail className="w-3.5 h-3.5" />
-                      <span>Reply</span>
+                      <span>Direct Reply</span>
                     </a>
                   </div>
                 </div>
-              </div>
+              </motion.div>
             );
           })
         )}
       </div>
 
       {/* ENQUIRY DETAIL MODAL */}
-      {selectedMessage && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-          <div className="w-full max-w-2xl rounded-2xl bg-[#0D1424] border border-[#1D2A40] p-6 space-y-5 shadow-2xl text-left max-h-[90vh] overflow-y-auto font-body">
-            {/* Modal Header */}
-            <div className="flex items-start justify-between border-b border-[#1D2A40] pb-4">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-mono text-xs font-bold text-cyan-400 px-2 py-0.5 rounded bg-cyan-950/80 border border-cyan-500/40">
-                    {selectedMessage.reference_code || 'INQUIRY'}
-                  </span>
-                  <span
-                    className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase ${
-                      selectedMessage.status === 'resolved'
-                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                        : selectedMessage.status === 'in_progress'
-                        ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
-                        : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                    }`}
-                  >
-                    {selectedMessage.status || 'New'}
-                  </span>
-                </div>
-                <h3 className="text-xl font-bold text-white font-heading">
-                  {selectedMessage.subject || 'General Enquiry'}
-                </h3>
-              </div>
-
-              <button
-                onClick={() => setSelectedMessage(null)}
-                className="p-1.5 rounded-lg bg-gray-900 border border-gray-800 text-gray-400 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Sender Metadata */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 rounded-xl bg-[#111B2D] border border-[#1D2A40] text-xs">
-              <div>
-                <span className="text-slate-400 block font-mono">Sender Name:</span>
-                <span className="text-white font-semibold text-sm">{selectedMessage.name}</span>
-              </div>
-              <div>
-                <span className="text-slate-400 block font-mono">Email Address:</span>
-                <a href={`mailto:${selectedMessage.email}`} className="text-cyan-400 hover:underline font-mono">
-                  {selectedMessage.email}
-                </a>
-              </div>
-              {selectedMessage.registration_id_ref && (
+      <AnimatePresence>
+        {selectedMessage && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md"
+            onClick={() => setSelectedMessage(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.94, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 8 }}
+              transition={springUI}
+              className="w-full max-w-2xl rounded-3xl bg-gradient-to-b from-[#10172a] to-[#080d19] border border-white/15 p-6 space-y-5 shadow-2xl text-left max-h-[90vh] overflow-y-auto font-body"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div className="flex items-start justify-between border-b border-white/10 pb-4">
                 <div>
-                  <span className="text-slate-400 block font-mono">Related Registration ID:</span>
-                  <span className="text-amber-300 font-mono font-semibold">{selectedMessage.registration_id_ref}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs font-bold text-cyan-400 px-2 py-0.5 rounded-lg bg-cyan-500/10 border border-cyan-500/30">
+                      {selectedMessage.reference_code || 'TICKET'}
+                    </span>
+                    <span className="text-xs text-slate-400 font-mono">
+                      {selectedMessage.created_at ? new Date(selectedMessage.created_at).toLocaleString() : 'N/A'}
+                    </span>
+                  </div>
+                  <h3 className="text-lg font-bold text-white mt-1.5 font-heading">
+                    {selectedMessage.subject || 'Support Ticket'}
+                  </h3>
                 </div>
-              )}
+
+                <button
+                  onClick={() => setSelectedMessage(null)}
+                  className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Sender Details */}
+              <div className="grid grid-cols-2 gap-3 p-4 rounded-2xl bg-white/[0.03] border border-white/5 text-xs">
+                <div>
+                  <span className="text-slate-400 block font-mono">Sender Name</span>
+                  <strong className="text-white text-sm">{selectedMessage.name}</strong>
+                </div>
+                <div>
+                  <span className="text-slate-400 block font-mono">Email Address</span>
+                  <a href={`mailto:${selectedMessage.email}`} className="text-cyan-400 font-mono hover:underline text-sm">
+                    {selectedMessage.email}
+                  </a>
+                </div>
+              </div>
+
+              {/* Message Body */}
               <div>
-                <span className="text-slate-400 block font-mono">Submitted Timestamp:</span>
-                <span className="text-slate-300 font-mono">
-                  {selectedMessage.created_at ? new Date(selectedMessage.created_at).toLocaleString() : 'N/A'}
-                </span>
-              </div>
-            </div>
-
-            {/* Message Body */}
-            <div>
-              <label className="text-xs font-mono font-bold text-slate-400 uppercase tracking-wider block mb-2">
-                Full Inquiry Message
-              </label>
-              <div className="p-4 rounded-xl bg-[#070b14] border border-[#1D2A40] text-sm text-slate-200 leading-relaxed whitespace-pre-wrap">
-                {selectedMessage.message}
-              </div>
-            </div>
-
-            {/* Modal Actions */}
-            <div className="pt-3 border-t border-[#1D2A40] flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-400 font-mono">Change Status:</span>
-                <button
-                  onClick={() => handleMessageStatus(selectedMessage.id || selectedMessage.reference_code, 'new')}
-                  className={`px-2.5 py-1 rounded text-xs font-mono ${selectedMessage.status === 'new' ? 'bg-amber-500 text-black font-bold' : 'bg-gray-900 border border-gray-800 text-gray-300'}`}
-                >
-                  New
-                </button>
-                <button
-                  onClick={() => handleMessageStatus(selectedMessage.id || selectedMessage.reference_code, 'in_progress')}
-                  className={`px-2.5 py-1 rounded text-xs font-mono ${selectedMessage.status === 'in_progress' ? 'bg-cyan-500 text-black font-bold' : 'bg-gray-900 border border-gray-800 text-gray-300'}`}
-                >
-                  In Progress
-                </button>
-                <button
-                  onClick={() => handleMessageStatus(selectedMessage.id || selectedMessage.reference_code, 'resolved')}
-                  className={`px-2.5 py-1 rounded text-xs font-mono ${selectedMessage.status === 'resolved' ? 'bg-emerald-500 text-black font-bold' : 'bg-gray-900 border border-gray-800 text-gray-300'}`}
-                >
-                  Resolved
-                </button>
+                <label className="text-xs font-mono text-slate-400 block mb-2">FULL MESSAGE CONTENT</label>
+                <div className="p-4 rounded-2xl bg-[#060912]/80 border border-white/10 text-xs sm:text-sm text-slate-200 leading-relaxed whitespace-pre-wrap font-normal">
+                  {selectedMessage.message}
+                </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              {/* Action Bar */}
+              <div className="flex items-center justify-between pt-3 border-t border-white/10">
                 <a
-                  href={`mailto:${selectedMessage.email}?subject=RE: INNOSPRINT [${selectedMessage.reference_code}] - ${encodeURIComponent(selectedMessage.subject || 'Support Response')}`}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-bold text-xs font-heading shadow-md transition-colors"
+                  href={`mailto:${selectedMessage.email}?subject=RE: INNOSPRINT - ${encodeURIComponent(selectedMessage.subject || 'Support Request')}`}
+                  className="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-[#040711] font-bold text-xs flex items-center gap-2 shadow-lg shadow-cyan-500/25 transition-all"
                 >
                   <Mail className="w-4 h-4" />
                   <span>Reply via Email</span>
                 </a>
+
+                <button
+                  onClick={() => setSelectedMessage(null)}
+                  className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 hover:text-white text-xs font-semibold transition-colors"
+                >
+                  Close
+                </button>
               </div>
-            </div>
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
     </div>
   );
 }

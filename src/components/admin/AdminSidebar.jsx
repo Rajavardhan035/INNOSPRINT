@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard,
   Users,
@@ -18,6 +19,7 @@ import {
   X,
   FileSpreadsheet
 } from 'lucide-react';
+import { springUI } from '../../styles/motionConfig';
 
 export default function AdminSidebar({
   activeTab,
@@ -94,7 +96,7 @@ export default function AdminSidebar({
           label: 'Contact Enquiries',
           icon: MessageSquare,
           badge: counts.unresolvedMsgs > 0 ? String(counts.unresolvedMsgs) : null,
-          badgeColor: 'bg-rose-950/80 text-rose-300 border-rose-500/30',
+          badgeColor: 'bg-rose-950/80 text-rose-300 border-rose-500/40',
         },
         {
           id: 'roles',
@@ -127,44 +129,60 @@ export default function AdminSidebar({
           if (mobileOpen) setMobileOpen(false);
         }}
         title={collapsed ? item.label : undefined}
-        className={`group relative w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-body transition-colors duration-150 ${
-          isActive
-            ? 'bg-[#22d3ee]/10 text-[#22d3ee] font-medium border-l-2 border-[#22d3ee]'
-            : 'text-gray-400 hover:text-gray-200 hover:bg-[#111b2d]/60 font-normal'
+        className={`group relative w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs sm:text-[13px] font-medium transition-colors select-none ${
+          isActive ? 'text-cyan-300' : 'text-slate-400 hover:text-slate-200'
         }`}
       >
-        <div className="relative flex items-center justify-center flex-shrink-0">
+        {/* Active Sliding Pill Indicator */}
+        {isActive && (
+          <motion.div
+            layoutId="activeTabPill"
+            transition={springUI}
+            className="absolute inset-0 rounded-xl bg-gradient-to-r from-cyan-500/15 via-blue-500/10 to-transparent border border-cyan-500/30 shadow-[0_0_20px_rgba(34,211,238,0.15)] z-0"
+          />
+        )}
+
+        {/* Hover Highlight (when not active) */}
+        {!isActive && (
+          <div className="absolute inset-0 rounded-xl bg-white/[0.03] opacity-0 group-hover:opacity-100 transition-opacity z-0 pointer-events-none" />
+        )}
+
+        {/* Left Glowing Accent Line when active */}
+        {isActive && (
+          <motion.div
+            layoutId="activeTabGlowLine"
+            transition={springUI}
+            className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-cyan-400 shadow-[0_0_10px_#22d3ee] z-10"
+          />
+        )}
+
+        {/* Icon */}
+        <div className="relative z-10 flex items-center justify-center flex-shrink-0">
           <Icon
-            className={`w-4 h-4 transition-colors ${
-              isActive ? 'text-[#22d3ee]' : 'text-gray-400 group-hover:text-gray-200'
+            className={`w-4 h-4 transition-transform duration-200 group-hover:scale-110 ${
+              isActive ? 'text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.6)]' : 'text-slate-400 group-hover:text-slate-200'
             }`}
           />
         </div>
 
+        {/* Label & Badge */}
         {!collapsed && (
-          <span className="flex-1 text-left truncate">
-            {item.label}
-          </span>
-        )}
-
-        {!collapsed && item.badge && (
-          <span
-            className={`px-2 py-0.5 text-[11px] font-mono rounded-md border ${
-              item.badgeColor || 'bg-[#111b2d] text-gray-300 border-[#1d2a40]'
-            }`}
-          >
-            {item.badge}
-          </span>
-        )}
-
-        {/* Collapsed Tooltip */}
-        {collapsed && (
-          <div className="pointer-events-none absolute left-full ml-3 hidden group-hover:flex items-center px-2.5 py-1.5 rounded-lg bg-[#0d1424] border border-[#1d2a40] text-white text-xs font-medium font-body whitespace-nowrap shadow-xl z-50">
-            {item.label}
+          <div className="relative z-10 flex-1 flex items-center justify-between min-w-0">
+            <span className="truncate">{item.label}</span>
             {item.badge && (
-              <span className="ml-1.5 px-1.5 py-0.5 text-[10px] font-mono rounded bg-[#111b2d] text-gray-300 border border-[#1d2a40]">
+              <motion.span
+                key={item.badge}
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
+                  item.badgeColor ||
+                  (isActive
+                    ? 'bg-cyan-950/90 text-cyan-300 border-cyan-400/40 shadow-[0_0_10px_rgba(34,211,238,0.2)]'
+                    : 'bg-white/[0.04] text-slate-400 border-white/[0.08]')
+                }`}
+              >
                 {item.badge}
-              </span>
+              </motion.span>
             )}
           </div>
         )}
@@ -173,133 +191,112 @@ export default function AdminSidebar({
   };
 
   const SidebarContent = () => (
-    <div className="h-full flex flex-col justify-between select-none font-body bg-[#090f1d] text-gray-200">
-      {/* Top Header */}
-      <div>
-        <div className="h-16 flex items-center justify-between px-4 border-b border-[#1d2a40] bg-[#090f1d]">
-          <Link
-            to="/admin"
-            className="flex items-center gap-2.5 overflow-hidden group"
-          >
-            <div className="w-8 h-8 rounded-lg bg-[#111b2d] border border-[#1d2a40] flex items-center justify-center flex-shrink-0 group-hover:border-[#22d3ee]/40 transition-colors">
-              <Zap className="w-4 h-4 text-[#22d3ee]" />
-            </div>
-
-            {!collapsed && (
-              <div className="flex items-center gap-2">
-                <span className="text-base font-bold tracking-tight text-white font-heading">
-                  INNO<span className="text-[#22d3ee]">SPRINT</span>
-                </span>
-                <span className="px-1.5 py-0.5 text-[9px] font-semibold uppercase rounded bg-[#111b2d] text-cyan-300 border border-cyan-500/30 font-mono">
-                  ADMIN
-                </span>
-              </div>
-            )}
-          </Link>
-
-          {/* Desktop collapse toggle button */}
-          <button
-            type="button"
-            onClick={() => setCollapsed(!collapsed)}
-            className="hidden lg:flex p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-[#111b2d] transition-colors border border-transparent hover:border-[#1d2a40]"
-            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            {collapsed ? (
-              <ChevronRight className="w-4 h-4 text-[#22d3ee]" />
-            ) : (
-              <ChevronLeft className="w-4 h-4" />
-            )}
-          </button>
-
-          {/* Mobile close button */}
-          <button
-            type="button"
-            onClick={() => setMobileOpen(false)}
-            className="lg:hidden p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-[#111b2d]"
-          >
-            <X className="w-5 h-5 text-gray-400" />
-          </button>
-        </div>
-
-        {/* Navigation Item Groups */}
-        <div className="py-4 px-3 space-y-5 overflow-y-auto max-h-[calc(100vh-210px)] custom-scrollbar">
-          {navSections.map((section, idx) => (
-            <div key={idx} className="space-y-1">
-              {!collapsed && (
-                <div className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400 font-heading">
-                  {section.group}
-                </div>
-              )}
-              {collapsed && <div className="h-1.5" />}
-              <div className="space-y-0.5">
-                {section.items.map((item) => (
-                  <NavItem key={item.id} item={item} />
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Bottom Profile / Quick Links */}
-      <div className="p-3 border-t border-[#1d2a40] bg-[#090f1d] space-y-2">
-        {/* User Card */}
-        <div
-          className={`p-2.5 rounded-xl bg-[#0d1424] border border-[#1d2a40] flex items-center gap-2.5 ${
-            collapsed ? 'justify-center' : ''
-          }`}
+    <div className="flex flex-col h-full bg-[#060A14] text-slate-200 border-r border-white/[0.08] relative select-none">
+      {/* Top Brand Header */}
+      <div className="h-16 px-4 flex items-center justify-between border-b border-white/[0.08] bg-[#080E1C]/80 backdrop-blur-md">
+        <Link
+          to="/"
+          className="flex items-center gap-2.5 overflow-hidden group"
+          title="Back to Public Portal"
         >
-          <div className="w-8 h-8 rounded-lg bg-[#111b2d] border border-[#1d2a40] flex items-center justify-center text-[#22d3ee] font-bold text-xs uppercase flex-shrink-0 font-heading">
-            {adminDisplayName.charAt(0)}
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-cyan-400 via-blue-500 to-violet-600 p-0.5 flex items-center justify-center flex-shrink-0 shadow-[0_0_15px_rgba(34,211,238,0.4)] group-hover:shadow-[0_0_20px_rgba(34,211,238,0.6)] transition-all">
+            <div className="w-full h-full bg-[#060A14] rounded-[10px] flex items-center justify-center">
+              <Zap className="w-4 h-4 text-cyan-400 animate-pulse" />
+            </div>
           </div>
 
           {!collapsed && (
-            <div className="flex-1 min-w-0">
+            <div className="min-w-0">
               <div className="flex items-center gap-1.5">
-                <span className="text-xs font-semibold text-white truncate block font-heading">
-                  {adminDisplayName}
+                <span className="font-heading font-black text-sm tracking-wider text-white">
+                  INNO<span className="text-cyan-400">SPRINT</span>
                 </span>
-                <span
-                  className={`text-[9px] font-medium uppercase px-1.5 py-0.5 rounded font-mono ${
-                    role === 'superadmin'
-                      ? 'bg-amber-950/80 text-amber-300 border border-amber-500/30'
-                      : 'bg-purple-950/80 text-purple-300 border border-purple-500/30'
-                  }`}
-                >
-                  {role}
+                <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-cyan-950 text-cyan-400 border border-cyan-500/40">
+                  PRO
                 </span>
               </div>
-              <span className="text-[11px] text-gray-400 font-mono truncate block">
-                {adminEmail}
+              <span className="block text-[10px] text-slate-500 uppercase font-mono tracking-widest">
+                Mission Control
               </span>
             </div>
           )}
-        </div>
+        </Link>
 
-        {/* Action Controls */}
-        <div className={`flex items-center gap-1.5 ${collapsed ? 'flex-col' : ''}`}>
-          <Link
-            to="/"
-            title="Return to Public Website"
-            className={`flex items-center justify-center gap-2 px-2.5 py-2 rounded-lg bg-[#0d1424] hover:bg-[#111b2d] border border-[#1d2a40] text-gray-300 hover:text-[#22d3ee] text-xs font-medium font-body transition-colors ${
-              collapsed ? 'w-full' : 'flex-1'
-            }`}
-          >
-            <Globe className="w-3.5 h-3.5" />
-            {!collapsed && <span>Live Portal</span>}
-          </Link>
+        {/* Desktop Collapse Toggle */}
+        <button
+          type="button"
+          onClick={() => setCollapsed(!collapsed)}
+          className="hidden lg:flex items-center justify-center p-1.5 rounded-lg text-slate-400 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] transition-colors"
+          title={collapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+        >
+          {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+        </button>
 
-          <button
-            type="button"
-            onClick={handleLogout}
-            title="Log out of Admin Console"
-            className={`flex items-center justify-center gap-2 px-2.5 py-2 rounded-lg bg-[#0d1424] hover:bg-rose-950/40 border border-[#1d2a40] hover:border-rose-500/40 text-gray-300 hover:text-rose-300 text-xs font-medium font-body transition-colors ${
-              collapsed ? 'w-full' : 'flex-1'
-            }`}
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            {!collapsed && <span>Sign Out</span>}
-          </button>
+        {/* Mobile Close Button */}
+        <button
+          type="button"
+          onClick={() => setMobileOpen(false)}
+          className="lg:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.08]"
+        >
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* Navigation Sections */}
+      <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6 scrollbar-thin scrollbar-thumb-white/10">
+        {navSections.map((sec, idx) => (
+          <div key={idx} className="space-y-1">
+            {!collapsed && (
+              <h4 className="px-3 text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500 mb-2">
+                {sec.group}
+              </h4>
+            )}
+            <div className="space-y-1">
+              {sec.items.map((item) => (
+                <NavItem key={item.id} item={item} />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* User Footer Profile & Live Portal Shortcut */}
+      <div className="p-3 border-t border-white/[0.08] bg-[#080E1C]/90 backdrop-blur-md space-y-2">
+        <Link
+          to="/"
+          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white bg-white/[0.03] hover:bg-white/[0.08] border border-white/[0.06] transition-colors"
+          title="Open Public Event Website"
+        >
+          <Globe className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+          {!collapsed && <span>Open Public Portal</span>}
+        </Link>
+
+        <div className="flex items-center justify-between p-2 rounded-xl bg-white/[0.02] border border-white/[0.04]">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-cyan-500/20 to-blue-500/20 border border-cyan-500/40 text-cyan-300 font-bold text-xs flex items-center justify-center flex-shrink-0">
+              {adminDisplayName.charAt(0).toUpperCase()}
+            </div>
+            {!collapsed && (
+              <div className="min-w-0">
+                <span className="block text-xs font-semibold text-white truncate">
+                  {adminDisplayName}
+                </span>
+                <span className="block text-[10px] text-cyan-400 font-mono capitalize">
+                  {role}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {!collapsed && handleLogout && (
+            <button
+              onClick={handleLogout}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 transition-colors"
+              title="Sign Out"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -307,31 +304,39 @@ export default function AdminSidebar({
 
   return (
     <>
-      {/* Desktop Persistent Sidebar */}
-      <aside
-        className={`hidden lg:block fixed top-0 bottom-0 left-0 z-40 bg-[#090f1d] border-r border-[#1d2a40] transition-all duration-300 ease-in-out ${
-          collapsed ? 'w-20' : 'w-64'
-        }`}
+      {/* Desktop Fixed Sidebar with smooth spring width */}
+      <motion.aside
+        initial={false}
+        animate={{ width: collapsed ? 80 : 256 }}
+        transition={springUI}
+        className="hidden lg:block fixed top-0 bottom-0 left-0 z-30 overflow-hidden"
       >
         <SidebarContent />
-      </aside>
+      </motion.aside>
 
-      {/* Mobile Drawer Backdrop */}
-      {mobileOpen && (
-        <div
-          onClick={() => setMobileOpen(false)}
-          className="lg:hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm transition-opacity duration-300"
-        />
-      )}
-
-      {/* Mobile Drawer */}
-      <aside
-        className={`lg:hidden fixed top-0 bottom-0 left-0 z-50 w-72 bg-[#090f1d] border-r border-[#1d2a40] transition-transform duration-300 ease-in-out shadow-2xl ${
-          mobileOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
-      >
-        <SidebarContent />
-      </aside>
+      {/* Mobile Off-canvas Drawer */}
+      <AnimatePresence>
+        {mobileOpen && (
+          <div className="lg:hidden fixed inset-0 z-50 flex">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setMobileOpen(false)}
+              className="fixed inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={springUI}
+              className="relative w-72 max-w-[85vw] h-full z-10"
+            >
+              <SidebarContent />
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </>
   );
 }

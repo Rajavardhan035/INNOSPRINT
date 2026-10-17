@@ -1,4 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import confetti from 'canvas-confetti';
+import { toast } from 'sonner';
+import CountUp from './admin/shared/CountUp';
 import {
   Award,
   Upload,
@@ -554,6 +558,15 @@ export default function CertificateManagementTab({
     setBulkRunning(false);
     setBulkSummary({ successCount, failCount });
 
+    if (successCount > 0) {
+      confetti({
+        particleCount: 120,
+        spread: 80,
+        origin: { y: 0.6 }
+      });
+      toast.success(`Bulk upload completed! ${successCount} certificates successfully issued.`);
+    }
+
     if (typeof onRefreshRegistrations === 'function' && successCount > 0) {
       onRefreshRegistrations();
     }
@@ -638,60 +651,82 @@ export default function CertificateManagementTab({
           </div>
         </div>
 
-        {/* Summary Statistics Cards (Section 7) */}
+        {/* Summary Statistics Cards (Section 7) with animated SVG Progress Ring & CountUp */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-          <div className="p-3.5 rounded-lg bg-[#111B2D] border border-[#1D2A40]">
-            <span className="text-[11px] text-slate-400 font-medium font-body block">
-              Registered Participants
+          <div className="p-4 rounded-2xl bg-gradient-to-b from-[#111B2D]/80 to-[#070b14]/80 border border-white/10 shadow-lg">
+            <span className="text-[11px] text-slate-400 font-medium block">
+              Registered Hackers
             </span>
-            <span className="text-2xl font-bold text-cyan-400 font-heading mt-0.5 block">
-              {totalRegisteredParticipants}
+            <span className="text-2xl font-bold text-cyan-400 font-mono mt-1 block">
+              <CountUp value={totalRegisteredParticipants} />
             </span>
-            <span className="text-[10px] text-slate-500 font-body">Across {totalRegisteredTeams} teams</span>
+            <span className="text-[10px] text-slate-500 font-mono">Across {totalRegisteredTeams} teams</span>
           </div>
 
-          <div className="p-3.5 rounded-lg bg-[#111B2D] border border-[#1D2A40]">
-            <span className="text-[11px] text-slate-400 font-medium font-body block">
-              Total Team Members
+          <div className="p-4 rounded-2xl bg-gradient-to-b from-[#111B2D]/80 to-[#070b14]/80 border border-white/10 shadow-lg">
+            <span className="text-[11px] text-slate-400 font-medium block">
+              Team Members
             </span>
-            <span className="text-2xl font-bold text-violet-400 font-heading mt-0.5 block">
-              {totalTeamMembersCount}
+            <span className="text-2xl font-bold text-violet-400 font-mono mt-1 block">
+              <CountUp value={totalTeamMembersCount} />
             </span>
-            <span className="text-[10px] text-slate-500 font-body">Excluding team leaders</span>
+            <span className="text-[10px] text-slate-500 font-mono">Excluding team leaders</span>
           </div>
 
-          <div className="p-3.5 rounded-lg bg-[#111B2D] border border-[#1D2A40]">
-            <span className="text-[11px] text-slate-400 font-medium font-body block">
-              Certificates Uploaded
+          <div className="p-4 rounded-2xl bg-gradient-to-b from-[#111B2D]/80 to-[#070b14]/80 border border-white/10 shadow-lg">
+            <span className="text-[11px] text-slate-400 font-medium block">
+              Certificates Issued
             </span>
-            <span className="text-2xl font-bold text-amber-400 font-heading mt-0.5 block">
-              {totalCertificatesUploaded}
+            <span className="text-2xl font-bold text-amber-400 font-mono mt-1 block">
+              <CountUp value={totalCertificatesUploaded} />
             </span>
-            <span className="text-[10px] text-amber-400/80 font-body">Available to participants</span>
+            <span className="text-[10px] text-amber-400/80 font-mono">Live on portal</span>
           </div>
 
-          <div className="p-3.5 rounded-lg bg-[#111B2D] border border-[#1D2A40]">
-            <span className="text-[11px] text-slate-400 font-medium font-body block">
+          <div className="p-4 rounded-2xl bg-gradient-to-b from-[#111B2D]/80 to-[#070b14]/80 border border-white/10 shadow-lg">
+            <span className="text-[11px] text-slate-400 font-medium block">
               Certificates Pending
             </span>
-            <span className="text-2xl font-bold text-slate-300 font-heading mt-0.5 block">
-              {totalCertificatesPending}
+            <span className="text-2xl font-bold text-slate-300 font-mono mt-1 block">
+              <CountUp value={totalCertificatesPending} />
             </span>
-            <span className="text-[10px] text-slate-500 font-body">Awaiting upload</span>
+            <span className="text-[10px] text-slate-500 font-mono">Awaiting issuance</span>
           </div>
 
-          <div className="p-3.5 rounded-lg bg-[#111B2D] border border-[#1D2A40] col-span-2 sm:col-span-1">
-            <span className="text-[11px] text-slate-400 font-medium font-body block">
-              Completion Rate
-            </span>
-            <span className="text-2xl font-bold text-emerald-400 font-heading mt-0.5 block">
-              {overallCompletionPercentage}%
-            </span>
-            <div className="w-full h-1.5 rounded-full bg-[#070b14] overflow-hidden mt-1.5">
-              <div
-                className="h-full bg-gradient-to-r from-amber-400 to-emerald-400 transition-all duration-500"
-                style={{ width: `${overallCompletionPercentage}%` }}
-              />
+          <div className="p-4 rounded-2xl bg-gradient-to-b from-[#111B2D]/80 to-[#070b14]/80 border border-white/10 col-span-2 sm:col-span-1 shadow-lg flex items-center justify-between">
+            <div>
+              <span className="text-[11px] text-slate-400 font-medium block">
+                Issuance Rate
+              </span>
+              <span className="text-2xl font-bold text-emerald-400 font-mono mt-1 block">
+                {overallCompletionPercentage}%
+              </span>
+              <span className="text-[10px] text-emerald-400/80 font-mono">Verified valid</span>
+            </div>
+
+            {/* Circular Progress Ring SVG */}
+            <div className="relative w-12 h-12 flex-shrink-0">
+              <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
+                <path
+                  className="text-white/10"
+                  strokeWidth="3.5"
+                  stroke="currentColor"
+                  fill="none"
+                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                />
+                <motion.path
+                  className="text-emerald-400"
+                  strokeDasharray="100, 100"
+                  initial={{ strokeDashoffset: 100 }}
+                  animate={{ strokeDashoffset: 100 - overallCompletionPercentage }}
+                  transition={{ duration: 1, ease: 'easeOut' }}
+                  strokeWidth="3.5"
+                  strokeLinecap="round"
+                  stroke="currentColor"
+                  fill="none"
+                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                />
+              </svg>
             </div>
           </div>
         </div>

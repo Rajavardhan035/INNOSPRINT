@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   UserPlus,
   Users,
@@ -7,9 +8,14 @@ import {
   Trash2,
   Shield,
   Key,
-  UserCheck
+  UserCheck,
+  ShieldCheck,
+  Crown
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
+import CountUp from './shared/CountUp';
+import { springUI } from '../../styles/motionConfig';
 
 export default function RolesTab({
   authorizedAdminsList = [],
@@ -20,20 +26,16 @@ export default function RolesTab({
   const [newAdminName, setNewAdminName] = useState('');
   const [newAdminEmail, setNewAdminEmail] = useState('');
   const [newAdminRole, setNewAdminRole] = useState('organizer');
-  const [adminSuccessMsg, setAdminSuccessMsg] = useState('');
-  const [adminErrorMsg, setAdminErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleAddAdmin = async (e) => {
     e.preventDefault();
-    setAdminSuccessMsg('');
-    setAdminErrorMsg('');
 
     const cleanEmail = newAdminEmail.trim().toLowerCase();
     const cleanName = newAdminName.trim();
 
     if (!cleanEmail || !cleanName) {
-      setAdminErrorMsg('Please specify both full name and a valid email address.');
+      toast.error('Please specify both full name and a valid email address.');
       return;
     }
 
@@ -72,16 +74,15 @@ export default function RolesTab({
       setAuthorizedAdminsList(updated);
       localStorage.setItem('inno_sprint_authorized_admins', JSON.stringify(updated));
 
-      setAdminSuccessMsg(
-        `Granted ${newAdminRole.toUpperCase()} access to ${cleanName} (${cleanEmail}). They can now log in at /login.`
+      toast.success(
+        `Granted ${newAdminRole.toUpperCase()} access to ${cleanName} (${cleanEmail})`
       );
       setNewAdminName('');
       setNewAdminEmail('');
       setNewAdminRole('organizer');
-      setTimeout(() => setAdminSuccessMsg(''), 5000);
     } catch (err) {
       console.error('[Add Admin Error]', err);
-      setAdminErrorMsg('Failed to authorize admin: ' + (err.message || 'Operation failed.'));
+      toast.error('Failed to authorize admin: ' + (err.message || 'Operation failed.'));
     } finally {
       setLoading(false);
     }
@@ -89,7 +90,7 @@ export default function RolesTab({
 
   const handleRevokeAdmin = async (adminId, adminEmail) => {
     if (adminEmail?.toLowerCase() === 'rajavardhan445@gmail.com') {
-      alert('Main Admin (rajavardhan445@gmail.com) cannot be revoked.');
+      toast.error('Main Admin (rajavardhan445@gmail.com) cannot be revoked.');
       return;
     }
 
@@ -112,74 +113,64 @@ export default function RolesTab({
     );
     setAuthorizedAdminsList(updated);
     localStorage.setItem('inno_sprint_authorized_admins', JSON.stringify(updated));
+    toast.success(`Revoked administrative access for ${adminEmail}`);
   };
 
   return (
-    <div className="space-y-6 animate-fadeIn font-body">
+    <div className="space-y-6 font-body">
       {/* Authorize New Admin Form */}
-      <div className="p-5 sm:p-6 rounded-xl bg-[#0D1424] border border-[#1D2A40] space-y-4 font-body">
-        <div className="flex items-center gap-2 border-b border-[#1D2A40] pb-3">
-          <UserPlus className="w-4 h-4 text-cyan-400" />
-          <h3 className="text-base font-bold text-white font-heading tracking-wide">
-            Authorize New Organizer, Faculty or Judge
-          </h3>
+      <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-b from-[#0e1629]/95 to-[#070b14]/95 border border-white/10 backdrop-blur-xl shadow-2xl space-y-4">
+        <div className="flex items-center gap-2.5 border-b border-white/10 pb-3">
+          <div className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
+            <UserPlus className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-white font-heading tracking-wide">
+              Authorize Faculty Coordinator or Judge
+            </h3>
+            <p className="text-xs text-slate-400">
+              Grant elevated privileges to university mentors, judges, and organizing committee staff.
+            </p>
+          </div>
         </div>
 
-        <p className="text-xs text-slate-400 leading-relaxed font-normal">
-          Add university faculty coordinators, evaluation judges, or student leads by email. Once authorized, they can log in via <strong className="text-cyan-400 font-mono">/login</strong> to review registrations and manage operations.
-        </p>
-
-        {adminSuccessMsg && (
-          <div className="p-3.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs font-medium flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 flex-shrink-0 text-emerald-400" />
-            <span>{adminSuccessMsg}</span>
-          </div>
-        )}
-
-        {adminErrorMsg && (
-          <div className="p-3.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs font-medium flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-400" />
-            <span>{adminErrorMsg}</span>
-          </div>
-        )}
-
-        <form onSubmit={handleAddAdmin} className="grid grid-cols-1 sm:grid-cols-12 gap-3.5 items-end">
+        <form onSubmit={handleAddAdmin} className="grid grid-cols-1 sm:grid-cols-12 gap-3.5 items-end pt-2">
           <div className="sm:col-span-4">
-            <label className="block text-xs font-medium text-slate-300 mb-1.5">
-              Admin / Organizer Name *
+            <label className="block text-xs font-semibold text-slate-300 mb-1.5 font-mono">
+              OFFICIAL FULL NAME *
             </label>
             <input
               type="text"
               value={newAdminName}
               onChange={(e) => setNewAdminName(e.target.value)}
               placeholder="e.g., Dr. Ramesh Kumar"
-              className="w-full px-3.5 py-2 rounded-lg bg-[#070b14] border border-[#1D2A40] text-xs text-white focus:border-cyan-400 focus:outline-none transition-colors"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-[#060912]/80 border border-white/10 text-xs text-white focus:border-cyan-400/60 focus:outline-none font-mono transition-all"
               required
             />
           </div>
 
           <div className="sm:col-span-5">
-            <label className="block text-xs font-medium text-slate-300 mb-1.5">
-              Email Address *
+            <label className="block text-xs font-semibold text-slate-300 mb-1.5 font-mono">
+              EMAIL ADDRESS *
             </label>
             <input
               type="email"
               value={newAdminEmail}
               onChange={(e) => setNewAdminEmail(e.target.value)}
               placeholder="e.g., coordinator@vvitu.ac.in"
-              className="w-full px-3.5 py-2 rounded-lg bg-[#070b14] border border-[#1D2A40] text-xs text-white focus:border-cyan-400 focus:outline-none transition-colors"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-[#060912]/80 border border-white/10 text-xs text-white focus:border-cyan-400/60 focus:outline-none font-mono transition-all"
               required
             />
           </div>
 
           <div className="sm:col-span-3">
-            <label className="block text-xs font-medium text-slate-300 mb-1.5">
-              Role Privileges
+            <label className="block text-xs font-semibold text-slate-300 mb-1.5 font-mono">
+              ROLE PRIVILEGES
             </label>
             <select
               value={newAdminRole}
               onChange={(e) => setNewAdminRole(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-[#070b14] border border-[#1D2A40] text-xs text-slate-300 focus:border-cyan-400 focus:outline-none transition-colors"
+              className="w-full px-3 py-2.5 rounded-xl bg-[#060912]/80 border border-white/10 text-xs text-slate-300 focus:border-cyan-400/60 focus:outline-none transition-all cursor-pointer"
             >
               <option value="organizer">Organizer (Co-Admin)</option>
               <option value="superadmin">Superadmin</option>
@@ -187,141 +178,91 @@ export default function RolesTab({
             </select>
           </div>
 
-          <div className="sm:col-span-12 pt-1">
-            <button
+          <div className="sm:col-span-12 pt-2">
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
               type="submit"
               disabled={loading}
-              className="px-4 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-[#070b14] font-semibold text-xs flex items-center gap-1.5 shadow-sm transition-all disabled:opacity-50"
+              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-300 hover:to-blue-400 text-[#040711] font-bold text-xs flex items-center gap-2 shadow-lg shadow-cyan-500/25 transition-all disabled:opacity-50"
             >
               <UserPlus className="w-3.5 h-3.5" />
-              <span>{loading ? 'Authorizing...' : 'Grant Admin Privileges'}</span>
-            </button>
+              <span>{loading ? 'Authorizing Access...' : 'Grant Privileges'}</span>
+            </motion.button>
           </div>
         </form>
       </div>
 
-      {/* Authorized Admins List */}
-      <div className="space-y-3.5">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-white font-heading flex items-center gap-2 tracking-wide">
-            <Users className="w-4 h-4 text-violet-400" />
-            <span>Authorized Event Administrators & Faculty ({authorizedAdminsList.length})</span>
-          </h3>
-          <span className="text-[11px] text-slate-400 font-mono">
-            Synced with Supabase
-          </span>
+      {/* Authorized Admins Roster */}
+      <div className="rounded-2xl bg-gradient-to-b from-[#0e1629]/90 to-[#070b14]/90 border border-white/10 backdrop-blur-xl shadow-2xl overflow-hidden space-y-0">
+        <div className="p-4 sm:p-5 border-b border-white/10 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            <h3 className="text-sm font-bold text-white font-heading">
+              Active Authorized Administrators (<CountUp value={authorizedAdminsList.length} />)
+            </h3>
+          </div>
+          <span className="text-xs font-mono text-slate-400">Secured via Supabase RLS</span>
         </div>
 
-        <div className="rounded-xl bg-[#0D1424] border border-[#1D2A40] overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-slate-300">
-              <thead className="bg-[#111B2D] text-slate-400 font-semibold uppercase text-[11px] tracking-wider border-b border-[#1D2A40]">
-                <tr>
-                  <th className="py-3 px-4">Admin Name</th>
-                  <th className="py-3 px-4">Email Address</th>
-                  <th className="py-3 px-4">Role Privileges</th>
-                  <th className="py-3 px-4">Authorized By</th>
-                  <th className="py-3 px-4 text-center">Revoke Access</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#1D2A40]">
-                {authorizedAdminsList.map((adm) => {
-                  const isMainAdmin = adm.email.toLowerCase() === 'rajavardhan445@gmail.com';
+        <div className="divide-y divide-white/5">
+          {authorizedAdminsList.length === 0 ? (
+            <div className="p-12 text-center text-slate-500 text-xs font-medium">
+              No additional administrators listed.
+            </div>
+          ) : (
+            authorizedAdminsList.map((adm, idx) => {
+              const isSuper = adm.role === 'superadmin' || adm.email === 'rajavardhan445@gmail.com';
 
-                  return (
-                    <tr key={adm.id || adm.email} className="hover:bg-[#111B2D]/50 transition-colors">
-                      <td className="py-3 px-4">
-                        <strong className="text-white block font-medium text-xs">
-                          {adm.full_name || 'Admin'}
+              return (
+                <motion.div
+                  key={adm.id || adm.email}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2, delay: idx * 0.02 }}
+                  className="p-4 sm:p-5 flex items-center justify-between gap-4 hover:bg-white/[0.02] transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 font-bold font-mono text-xs">
+                      {adm.full_name?.charAt(0) || 'A'}
+                    </div>
+
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <strong className="text-sm font-semibold text-white">
+                          {adm.full_name || 'Administrator'}
                         </strong>
-                      </td>
-
-                      <td className="py-3 px-4 font-mono text-cyan-400 text-xs">
-                        {adm.email}
-                      </td>
-
-                      <td className="py-3 px-4">
                         <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-semibold font-mono uppercase tracking-wide ${
-                            adm.role === 'superadmin'
-                              ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                              : adm.role === 'judge'
-                              ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
-                              : 'bg-[#111B2D] text-slate-300 border border-[#1D2A40]'
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase tracking-wider ${
+                            isSuper
+                              ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                              : 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30'
                           }`}
                         >
-                          {adm.role || 'organizer'}
+                          {adm.role || 'Organizer'}
                         </span>
-                      </td>
+                      </div>
+                      <span className="text-xs font-mono text-slate-400 block mt-0.5">
+                        {adm.email}
+                      </span>
+                    </div>
+                  </div>
 
-                      <td className="py-3 px-4 text-slate-400 text-xs">
-                        {adm.added_by || 'Main Admin'}
-                      </td>
-
-                      <td className="py-3 px-4 text-center">
-                        {isMainAdmin ? (
-                          <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-semibold font-mono uppercase">
-                            Primary Owner
-                          </span>
-                        ) : (
-                          <button
-                            onClick={() => handleRevokeAdmin(adm.id, adm.email)}
-                            className="px-2 py-1 rounded-md bg-[#111B2D] hover:bg-rose-950/60 border border-[#1D2A40] hover:border-rose-500/40 text-rose-300 font-medium text-xs flex items-center gap-1 mx-auto transition-colors"
-                            title="Revoke admin access"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                            <span>Revoke</span>
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      {/* Database User Roles Table */}
-      <div className="space-y-3 pt-3 border-t border-[#1D2A40]">
-        <h3 className="text-xs font-semibold text-slate-400">
-          Registered Database Accounts in user_roles ({userRolesList.length})
-        </h3>
-
-        <div className="rounded-xl bg-[#0D1424] border border-[#1D2A40] overflow-x-auto">
-          <table className="w-full text-left text-xs text-slate-300">
-            <thead className="bg-[#111B2D] text-slate-400 font-semibold uppercase text-[10px] tracking-wider border-b border-[#1D2A40]">
-              <tr>
-                <th className="py-2.5 px-3">User ID</th>
-                <th className="py-2.5 px-3">Name / Email</th>
-                <th className="py-2.5 px-3">Database Role</th>
-                <th className="py-2.5 px-3">Registration Date</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#1D2A40]">
-              {userRolesList.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="py-3 px-4 text-center text-slate-500 font-mono text-xs">
-                    No records found in user_roles table.
-                  </td>
-                </tr>
-              ) : (
-                userRolesList.map((ur) => (
-                  <tr key={ur.id} className="hover:bg-[#111B2D]/40 transition-colors">
-                    <td className="py-2.5 px-3 font-mono text-slate-500 text-[11px] truncate max-w-[120px]">{ur.user_id}</td>
-                    <td className="py-2.5 px-3 text-white font-medium text-xs">
-                      {ur.profiles?.full_name || ur.profiles?.email || 'Registered User'}
-                    </td>
-                    <td className="py-2.5 px-3 uppercase font-semibold text-violet-400 font-mono text-[10px]">{ur.role}</td>
-                    <td className="py-2.5 px-3 text-slate-400 font-mono text-[11px]">
-                      {ur.created_at ? new Date(ur.created_at).toLocaleDateString() : 'N/A'}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                  {adm.email?.toLowerCase() !== 'rajavardhan445@gmail.com' && (
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => handleRevokeAdmin(adm.id, adm.email)}
+                      className="p-2 rounded-xl bg-white/5 hover:bg-rose-500/20 border border-white/10 hover:border-rose-500/40 text-slate-400 hover:text-rose-400 transition-colors"
+                      title="Revoke Administrator Privileges"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </motion.button>
+                  )}
+                </motion.div>
+              );
+            })
+          )}
         </div>
       </div>
     </div>

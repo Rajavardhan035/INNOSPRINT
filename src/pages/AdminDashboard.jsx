@@ -7,6 +7,11 @@ import {
   fetchAllCertificatesMap,
 } from '../lib/certificates';
 
+import { AnimatePresence, motion } from 'framer-motion';
+import { Toaster, toast } from 'sonner';
+import CommandPalette from '../components/admin/shared/CommandPalette';
+import { pageTransitionVariants } from '../styles/motionConfig';
+
 // Administrative Subcomponents
 import AdminSidebar from '../components/admin/AdminSidebar';
 import AdminTopNav from '../components/admin/AdminTopNav';
@@ -35,10 +40,23 @@ export default function AdminDashboard() {
     return localStorage.getItem('inno_sprint_admin_sidebar_collapsed') === 'true';
   });
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('inno_sprint_admin_sidebar_collapsed', String(sidebarCollapsed));
   }, [sidebarCollapsed]);
+
+  // Global Command+K / Ctrl+K hotkey for Command Palette
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setCommandPaletteOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Data states from live Supabase
   const [loading, setLoading] = useState(true);
@@ -308,6 +326,7 @@ export default function AdminDashboard() {
         }
         return prev;
       });
+      toast.success(`Registration status marked as ${newStatus}`);
     } else {
       const localRegs = JSON.parse(localStorage.getItem('inno_sprint_registrations') || '[]');
       const updated = localRegs.map((r) =>
@@ -322,6 +341,7 @@ export default function AdminDashboard() {
         }
         return prev;
       });
+      toast.success(`Registration status marked as ${newStatus}`);
     }
   };
 
@@ -371,7 +391,7 @@ export default function AdminDashboard() {
         }
       } catch (err) {
         console.error('[Admin] Delete operation failed:', err);
-        alert('Failed to delete registration: ' + (err.message || 'Database error'));
+        toast.error('Failed to delete registration: ' + (err.message || 'Database error'));
         return false;
       }
     }
@@ -400,11 +420,13 @@ export default function AdminDashboard() {
       return prev;
     });
 
+    toast.success('Registration and associated team deleted permanently');
     return true;
   };
 
   // Export registrations CSV
   const exportCSV = () => {
+    toast.info('Generating registrations CSV export...');
     const headers = [
       'Ref Code',
       'Full Name',
@@ -488,106 +510,116 @@ export default function AdminDashboard() {
           user={user}
           role={role}
           setActiveTab={setTab}
+          onOpenCommandPalette={() => setCommandPaletteOpen(true)}
+          handleLogout={handleLogout}
         />
 
-        {/* Content Body */}
+        {/* Content Body with Fluid AnimatePresence Page Transitions */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
-          {tab === 'overview' && (
-            <OverviewTab
-              registrations={registrations}
-              contactMessages={contactMessages}
-              announcements={announcements}
-              certificatesMap={certificatesMap}
-              totalEligibleParticipants={totalEligibleParticipants}
-              certificatesUploadedCount={certificatesUploadedCount}
-              certificatesPendingCount={certificatesPendingCount}
-              exportCSV={exportCSV}
-              setActiveTab={setTab}
-              searchTerm={searchTerm}
-              user={user}
-              role={role}
-              onRefresh={fetchAdminData}
-              onSelectRegistration={(reg) => setSelectedRegistration(reg)}
-            />
-          )}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={tab}
+              {...pageTransitionVariants}
+              className="space-y-6"
+            >
+              {tab === 'overview' && (
+                <OverviewTab
+                  registrations={registrations}
+                  contactMessages={contactMessages}
+                  announcements={announcements}
+                  certificatesMap={certificatesMap}
+                  totalEligibleParticipants={totalEligibleParticipants}
+                  certificatesUploadedCount={certificatesUploadedCount}
+                  certificatesPendingCount={certificatesPendingCount}
+                  exportCSV={exportCSV}
+                  setActiveTab={setTab}
+                  searchTerm={searchTerm}
+                  user={user}
+                  role={role}
+                  onRefresh={fetchAdminData}
+                  onSelectRegistration={(reg) => setSelectedRegistration(reg)}
+                />
+              )}
 
-          {tab === 'registrations' && (
-            <RegistrationsTab
-              registrations={registrations}
-              onSelectRegistration={(reg) => setSelectedRegistration(reg)}
-              onUpdateStatus={handleUpdateStatus}
-              onDeleteRegistration={handleDeleteRegistration}
-              exportCSV={exportCSV}
-            />
-          )}
+              {tab === 'registrations' && (
+                <RegistrationsTab
+                  registrations={registrations}
+                  onSelectRegistration={(reg) => setSelectedRegistration(reg)}
+                  onUpdateStatus={handleUpdateStatus}
+                  onDeleteRegistration={handleDeleteRegistration}
+                  exportCSV={exportCSV}
+                />
+              )}
 
-          {tab === 'teams' && (
-            <TeamsTab
-              teamCards={teamCards}
-              onSelectRegistration={(reg) => setSelectedRegistration(reg)}
-              onDeleteRegistration={handleDeleteRegistration}
-              onOpenCertificateModal={(member) => {
-                setTab('certificates');
-              }}
-              setActiveTab={setTab}
-            />
-          )}
+              {tab === 'teams' && (
+                <TeamsTab
+                  teamCards={teamCards}
+                  onSelectRegistration={(reg) => setSelectedRegistration(reg)}
+                  onDeleteRegistration={handleDeleteRegistration}
+                  onOpenCertificateModal={(member) => {
+                    setTab('certificates');
+                  }}
+                  setActiveTab={setTab}
+                />
+              )}
 
-          {tab === 'certificates' && (
-            <CertificateManagementTab
-              registrations={registrations}
-              adminUser={user}
-              adminRole={role}
-              onRefreshRegistrations={fetchAdminData}
-            />
-          )}
+              {tab === 'certificates' && (
+                <CertificateManagementTab
+                  registrations={registrations}
+                  adminUser={user}
+                  adminRole={role}
+                  onRefreshRegistrations={fetchAdminData}
+                />
+              )}
 
-          {tab === 'submissions' && (
-            <SubmissionsTab
-              registrations={registrations}
-              onSelectRegistration={(reg) => setSelectedRegistration(reg)}
-            />
-          )}
+              {tab === 'submissions' && (
+                <SubmissionsTab
+                  registrations={registrations}
+                  onSelectRegistration={(reg) => setSelectedRegistration(reg)}
+                />
+              )}
 
-          {tab === 'results' && (
-            <ResultsTab
-              teamCards={teamCards}
-              setActiveTab={setTab}
-            />
-          )}
+              {tab === 'results' && (
+                <ResultsTab
+                  teamCards={teamCards}
+                  setActiveTab={setTab}
+                />
+              )}
 
-          {tab === 'cms' && (
-            <AnnouncementsTab
-              announcements={announcements}
-              setAnnouncements={setAnnouncements}
-              adminUser={user}
-            />
-          )}
+              {tab === 'cms' && (
+                <AnnouncementsTab
+                  announcements={announcements}
+                  setAnnouncements={setAnnouncements}
+                  adminUser={user}
+                />
+              )}
 
-          {tab === 'messages' && (
-            <MessagesTab
-              contactMessages={contactMessages}
-              setContactMessages={setContactMessages}
-              onRefreshMessages={fetchAdminData}
-              loading={loading}
-              adminUser={user}
-            />
-          )}
+              {tab === 'messages' && (
+                <MessagesTab
+                  contactMessages={contactMessages}
+                  setContactMessages={setContactMessages}
+                  onRefreshMessages={fetchAdminData}
+                  loading={loading}
+                  adminUser={user}
+                />
+              )}
 
-          {tab === 'roles' && (
-            <RolesTab
-              authorizedAdminsList={authorizedAdminsList}
-              setAuthorizedAdminsList={setAuthorizedAdminsList}
-              userRolesList={userRolesList}
-              adminUser={user}
-            />
-          )}
+              {tab === 'roles' && (
+                <RolesTab
+                  authorizedAdminsList={authorizedAdminsList}
+                  setAuthorizedAdminsList={setAuthorizedAdminsList}
+                  userRolesList={userRolesList}
+                  adminUser={user}
+                />
+              )}
 
-          {tab === 'settings' && (
-            <SettingsTab
-              onRefreshData={fetchAdminData}
-            />
-          )}
+              {tab === 'settings' && (
+                <SettingsTab
+                  onRefreshData={fetchAdminData}
+                />
+              )}
+            </motion.div>
+          </AnimatePresence>
         </main>
       </div>
 
@@ -597,6 +629,35 @@ export default function AdminDashboard() {
         onClose={() => setSelectedRegistration(null)}
         onUpdateStatus={handleUpdateStatus}
         onDeleteRegistration={handleDeleteRegistration}
+      />
+
+      {/* Global Spotlight Command Palette (Cmd+K) */}
+      <CommandPalette
+        isOpen={commandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        setActiveTab={setTab}
+        onRefresh={fetchAdminData}
+        exportCSV={exportCSV}
+        registrations={registrations}
+        onSelectRegistration={(reg) => setSelectedRegistration(reg)}
+      />
+
+      {/* Sleek Dark Theme Toaster */}
+      <Toaster
+        position="top-right"
+        theme="dark"
+        richColors
+        closeButton
+        toastOptions={{
+          style: {
+            background: '#0D1528',
+            border: '1px solid rgba(255, 255, 255, 0.12)',
+            borderRadius: '14px',
+            color: '#fff',
+            fontFamily: 'Inter, system-ui, sans-serif',
+            boxShadow: '0 12px 35px rgba(0,0,0,0.65)',
+          },
+        }}
       />
     </div>
   );
