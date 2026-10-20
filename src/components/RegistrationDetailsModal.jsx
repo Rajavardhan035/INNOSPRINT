@@ -7,7 +7,13 @@ import {
 } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
-export default function RegistrationDetailsModal({ registration, onClose, onUpdateStatus, onDeleteRegistration }) {
+export default function RegistrationDetailsModal({ 
+  registration, 
+  onClose, 
+  onUpdateStatus, 
+  onDeleteRegistration,
+  onSendNotificationEmail 
+}) {
   const [copiedRef, setCopiedRef] = useState(false);
   const [copiedEmail, setCopiedEmail] = useState(false);
   const [teamMembers, setTeamMembers] = useState([]);
@@ -15,6 +21,7 @@ export default function RegistrationDetailsModal({ registration, onClose, onUpda
   const [imagePreview, setImagePreview] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
 
   useEffect(() => {
     if (!registration) return;
@@ -525,9 +532,21 @@ export default function RegistrationDetailsModal({ registration, onClose, onUpda
             </div>
           ) : (
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-              <div className="flex items-center space-x-2 text-xs">
+              <div className="flex flex-wrap items-center gap-2 text-xs">
                 <span className="text-slate-400 font-medium">Status:</span>
                 {getStatusBadge(currentStatus)}
+                {currentStatus === 'approved' && (
+                  Boolean(registration?.organizer_notes && registration.organizer_notes.includes('EMAIL_SHORTLIST_SENT')) ? (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                      <Check className="w-3 h-3 text-emerald-400" />
+                      <span>Email Dispatched</span>
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-amber-500/10 text-amber-300 border border-amber-500/30">
+                      Email Pending
+                    </span>
+                  )
+                )}
               </div>
 
               <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
@@ -542,6 +561,29 @@ export default function RegistrationDetailsModal({ registration, onClose, onUpda
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   <span>{currentStatus === 'approved' ? 'Approved' : 'Approve'}</span>
                 </button>
+
+                {currentStatus === 'approved' && onSendNotificationEmail && (
+                  <button
+                    type="button"
+                    disabled={sendingEmail}
+                    onClick={async () => {
+                      setSendingEmail(true);
+                      await onSendNotificationEmail(registration, true);
+                      setSendingEmail(false);
+                    }}
+                    className="py-1.5 px-3 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-400/40 text-cyan-300 hover:text-white font-medium text-xs flex items-center space-x-1.5 transition-all disabled:opacity-50 shadow-sm"
+                    title="Dispatch official shortlist email notification to registered applicant via Google Apps Script"
+                  >
+                    <Mail className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>
+                      {sendingEmail
+                        ? 'Sending...'
+                        : Boolean(registration?.organizer_notes && registration.organizer_notes.includes('EMAIL_SHORTLIST_SENT'))
+                        ? 'Resend Shortlist Email'
+                        : 'Send Shortlist Email'}
+                    </span>
+                  </button>
+                )}
 
                 <button
                   onClick={() => onUpdateStatus(registration, 'waitlisted')}

@@ -7,6 +7,7 @@ import {
   groupRegistrationsIntoTeamCertificateCards,
   fetchAllCertificatesMap,
 } from '../lib/certificates';
+import { sendProjectApprovalEmail } from '../lib/email';
 
 import { AnimatePresence, motion } from 'framer-motion';
 import { Toaster, toast } from 'sonner';
@@ -320,7 +321,30 @@ export default function AdminDashboard() {
         }
         return prev;
       });
-      toast.success(`Registration status marked as ${newStatus}`);
+
+      // When an admin approves a project, automatically dispatch the official shortlist email
+      if (newStatus === 'approved') {
+        toast.info('Project approved! Triggering shortlist email notification...');
+        try {
+          const emailRes = await sendProjectApprovalEmail({ registrationId: regId || refCode });
+          if (emailRes?.alreadySent) {
+            toast.info('Shortlist notification was already previously delivered to this team.');
+          } else if (emailRes?.delivered) {
+            toast.success(`Shortlist email dispatched to ${emailRes.recipient || 'team'}!`);
+          } else if (emailRes?.isLocalFallback) {
+            toast.success('Project marked approved (local simulation mode).');
+          } else {
+            toast.warning(
+              `Project approved, but email dispatch notice: ${emailRes?.error || 'Service pending'}. (Retry available in dossier)`
+            );
+          }
+        } catch (emailErr) {
+          console.warn('[Admin] Automatic email notification notice:', emailErr);
+          toast.warning('Project approved, but email dispatch encountered an error. You can retry from the dossier.');
+        }
+      } else {
+        toast.success(`Registration status marked as ${newStatus}`);
+      }
     } else {
       const localRegs = JSON.parse(localStorage.getItem('inno_sprint_registrations') || '[]');
       const updated = localRegs.map((r) =>
@@ -336,6 +360,34 @@ export default function AdminDashboard() {
         return prev;
       });
       toast.success(`Registration status marked as ${newStatus}`);
+    }
+  };
+
+  // Safe retry / manual trigger for shortlist notification email
+  const handleSendShortlistEmail = async (regItem, forceRetry = false) => {
+    if (!regItem) return false;
+    const regId = typeof regItem === 'object' ? regItem.id : regItem;
+    const refCode = typeof regItem === 'object' ? regItem.reference_code : regItem;
+
+    toast.info('Dispatching shortlist notification email...');
+    try {
+      const emailRes = await sendProjectApprovalEmail({
+        registrationId: regId || refCode,
+        forceRetry,
+      });
+
+      if (emailRes?.alreadySent) {
+        toast.info('Shortlist email was already sent to this team.');
+      } else if (emailRes?.delivered) {
+        toast.success(`Shortlist email dispatched to ${emailRes.recipient || 'team'}!`);
+      } else {
+        toast.error(`Email delivery failed: ${emailRes?.error || 'Check configuration'}`);
+      }
+      return emailRes;
+    } catch (err) {
+      console.error('[Admin] Manual shortlist email error:', err);
+      toast.error('Failed to dispatch shortlist email: ' + err.message);
+      return { success: false, error: err.message };
     }
   };
 
@@ -747,6 +799,7 @@ export default function AdminDashboard() {
         onClose={() => setSelectedRegistration(null)}
         onUpdateStatus={handleUpdateStatus}
         onDeleteRegistration={handleDeleteRegistration}
+        onSendNotificationEmail={handleSendShortlistEmail}
       />
 
       {/* Global Spotlight Command Palette (Cmd+K) */}

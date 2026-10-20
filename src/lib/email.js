@@ -1,4 +1,72 @@
 // INNOSPRINT Email Service Integration Helper
+import { supabase, isSupabaseConfigured } from './supabase.js';
+
+/**
+ * Invokes the Supabase Edge Function to dispatch an official shortlisted project email
+ * via the configured Google Apps Script endpoint.
+ *
+ * @param {Object} params
+ * @param {string} params.registrationId - UUID or reference code of the approved registration
+ * @param {string} [params.submissionId] - Optional project_submissions UUID
+ * @param {boolean} [params.forceRetry=false] - If true, bypasses duplicate check to retry delivery
+ */
+export async function sendProjectApprovalEmail({ registrationId, submissionId, forceRetry = false }) {
+  const targetId = registrationId || submissionId;
+  if (!targetId) {
+    return { success: false, error: 'Registration or Submission ID is required.' };
+  }
+
+  if (!isSupabaseConfigured) {
+    console.info('[Email Fallback] Offline mode. Shortlist email recorded locally for:', targetId);
+    return {
+      success: true,
+      delivered: false,
+      isLocalFallback: true,
+      message: 'Offline mode active. Shortlist email simulated.',
+    };
+  }
+
+  try {
+    const { data, error } = await supabase.functions.invoke('send-project-notification', {
+      body: {
+        registrationId,
+        submissionId: submissionId || registrationId,
+        forceRetry,
+      },
+    });
+
+    if (error) {
+      console.warn('[Email Edge Function Notice]', error);
+      const errMsg = error.message || 'Failed to dispatch email via Edge Function';
+      return {
+        success: false,
+        delivered: false,
+        canRetry: true,
+        error: errMsg,
+      };
+    }
+
+    return {
+      success: data?.success ?? true,
+      delivered: data?.delivered ?? false,
+      alreadySent: Boolean(data?.alreadySent),
+      recipient: data?.recipient,
+      teamName: data?.teamName,
+      projectTitle: data?.projectTitle,
+      sentAt: data?.sentAt,
+      error: data?.error,
+      canRetry: Boolean(data?.canRetry),
+    };
+  } catch (err) {
+    console.error('[sendProjectApprovalEmail Exception]', err);
+    return {
+      success: false,
+      delivered: false,
+      canRetry: true,
+      error: err.message || 'An unexpected error occurred during email dispatch.',
+    };
+  }
+}
 
 export async function sendEmailNotification({ to, subject, template, data }) {
   console.log(`[INNOSPRINT Email Service] Dispatching email to: ${to} | Subject: ${subject}`);
@@ -77,3 +145,5 @@ function generateEmailHtml(template, data) {
       return `<p>${data.message || 'Notification from INNOSPRINT Organizers'}</p>`;
   }
 }
+
+export { sendEmailNotification as sendEmail };
