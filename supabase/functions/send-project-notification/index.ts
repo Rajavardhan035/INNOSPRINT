@@ -244,26 +244,31 @@ serve(async (req: Request) => {
     const referenceCode = registrationRecord.reference_code || "";
     const theme = registrationRecord.theme || "";
 
-    // 9. Concurrency & Idempotency Check
-    // Check if project_notifications table exists and if an email was already delivered
+    // 9. Atomic Concurrency & Idempotency Check via record_notification_attempt RPC
     let notificationRowId: string | null = null;
-    let hasNotificationTable = true;
+    let rpcHandled = false;
 
     try {
-      const { data: existingNotif, error: notifCheckErr } = await adminClient
-        .from("project_notifications")
-        .select("*")
-        .eq("registration_id", registrationRecord.id)
-        .eq("notification_type", "shortlisted")
-        .maybeSingle();
+      const { data: rpcRows, error: rpcError } = await adminClient.rpc(
+        "record_notification_attempt",
+        {
+          p_registration_id: registrationRecord.id,
+          p_submission_id: projectSubmissionRecord?.id || null,
+          p_recipient_email: recipientEmail,
+          p_team_name: teamName,
+          p_project_title: projectTitle,
+          p_notification_type: "shortlisted",
+          p_force_retry: Boolean(forceRetry),
+        }
+      );
 
-      if (notifCheckErr && notifCheckErr.code === "PGRST205") {
-        hasNotificationTable = false;
-      } else if (existingNotif) {
-        notificationRowId = existingNotif.id;
+      if (!rpcError && rpcRows && rpcRows.length > 0) {
+        rpcHandled = true;
+        const record = rpcRows[0];
+        notificationRowId = record.notification_id;
 
         // If already delivered and not forced, return idempotent success
-        if (existingNotif.status === "delivered" && !forceRetry) {
+        if (record.already_sent && !forceRetry) {
           return new Response(
             JSON.stringify({
               success: true,
@@ -274,67 +279,113 @@ serve(async (req: Request) => {
               teamName: teamName,
               projectTitle: projectTitle,
               referenceCode: referenceCode,
-              sentAt: existingNotif.sent_at,
             }),
             { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
           );
         }
 
-        // Concurrency guard: If already pending and attempted within last 30s, reject duplicate click
-        if (existingNotif.status === "pending") {
-          const lastAttempt = new Date(existingNotif.last_attempt_at || 0).getTime();
-          const now = Date.now();
-          if (now - lastAttempt < 30000 && !forceRetry) {
-            return new Response(
-              JSON.stringify({
-                success: false,
-                error: "A notification dispatch is currently in progress for this team. Please wait.",
-              }),
-              { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 429 }
-            );
-          }
+        // Concurrency guard: If attempt is throttled or cannot proceed
+        if (!record.can_proceed) {
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: "A notification dispatch is currently in progress for this team. Please wait.",
+            }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 429 }
+          );
         }
+      } else if (rpcError) {
+        console.warn("[send-project-notification] RPC record_notification_attempt notice (falling back to direct table):", rpcError.message);
       }
-    } catch {
-      hasNotificationTable = false;
+    } catch (rpcErr) {
+      console.warn("[send-project-notification] RPC invocation exception (falling back):", rpcErr);
     }
 
-    // 10. Record Pending Attempt in Database
-    if (hasNotificationTable) {
+    // Fallback: If RPC function is not yet installed in Supabase, use direct table logic
+    if (!rpcHandled) {
+      let hasNotificationTable = true;
       try {
-        if (notificationRowId) {
-          await adminClient
-            .from("project_notifications")
-            .update({
-              status: "pending",
-              attempt_count: adminClient.rpc
-                ? undefined
-                : 1, // Will be incremented or tracked
-              last_attempt_at: new Date().toISOString(),
-              error_message: null,
-            })
-            .eq("id", notificationRowId);
-        } else {
-          const { data: newRow } = await adminClient
-            .from("project_notifications")
-            .insert({
-              registration_id: registrationRecord.id,
-              submission_id: projectSubmissionRecord?.id || null,
-              recipient_email: recipientEmail,
-              team_name: teamName,
-              project_title: projectTitle,
-              notification_type: "shortlisted",
-              status: "pending",
-              attempt_count: 1,
-              last_attempt_at: new Date().toISOString(),
-            })
-            .select("id")
-            .single();
+        const { data: existingNotif, error: notifCheckErr } = await adminClient
+          .from("project_notifications")
+          .select("*")
+          .eq("registration_id", registrationRecord.id)
+          .eq("notification_type", "shortlisted")
+          .maybeSingle();
 
-          if (newRow) notificationRowId = newRow.id;
+        if (notifCheckErr && notifCheckErr.code === "PGRST205") {
+          hasNotificationTable = false;
+        } else if (existingNotif) {
+          notificationRowId = existingNotif.id;
+
+          if (existingNotif.status === "delivered" && !forceRetry) {
+            return new Response(
+              JSON.stringify({
+                success: true,
+                delivered: true,
+                alreadySent: true,
+                message: "Shortlist email notification was already sent to this team.",
+                recipient: recipientEmail,
+                teamName: teamName,
+                projectTitle: projectTitle,
+                referenceCode: referenceCode,
+                sentAt: existingNotif.sent_at,
+              }),
+              { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+            );
+          }
+
+          if (existingNotif.status === "pending") {
+            const lastAttempt = new Date(existingNotif.last_attempt_at || 0).getTime();
+            const now = Date.now();
+            if (now - lastAttempt < 30000 && !forceRetry) {
+              return new Response(
+                JSON.stringify({
+                  success: false,
+                  error: "A notification dispatch is currently in progress for this team. Please wait.",
+                }),
+                { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 429 }
+              );
+            }
+          }
         }
-      } catch (e) {
-        console.warn("[send-project-notification] Warning writing pending notification record:", e);
+      } catch {
+        hasNotificationTable = false;
+      }
+
+      if (hasNotificationTable) {
+        try {
+          if (notificationRowId) {
+            await adminClient
+              .from("project_notifications")
+              .update({
+                status: "pending",
+                attempt_count: 1,
+                last_attempt_at: new Date().toISOString(),
+                error_message: null,
+              })
+              .eq("id", notificationRowId);
+          } else {
+            const { data: newRow } = await adminClient
+              .from("project_notifications")
+              .insert({
+                registration_id: registrationRecord.id,
+                submission_id: projectSubmissionRecord?.id || null,
+                recipient_email: recipientEmail,
+                team_name: teamName,
+                project_title: projectTitle,
+                notification_type: "shortlisted",
+                status: "pending",
+                attempt_count: 1,
+                last_attempt_at: new Date().toISOString(),
+              })
+              .select("id")
+              .single();
+
+            if (newRow) notificationRowId = newRow.id;
+          }
+        } catch (e) {
+          console.warn("[send-project-notification] Warning writing pending notification record:", e);
+        }
       }
     }
 
