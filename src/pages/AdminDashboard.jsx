@@ -76,14 +76,6 @@ export default function AdminDashboard() {
       added_by: 'Primary Owner',
       created_at: '2026-03-01T00:00:00.000Z',
     },
-    {
-      id: 'adm_ujwal',
-      email: '24bq5a6135@vvit.net',
-      full_name: 'Ujwal',
-      role: 'organizer',
-      added_by: 'rajavardhan445@gmail.com',
-      created_at: '2026-03-01T00:00:00.000Z',
-    },
   ];
 
   const [authorizedAdminsList, setAuthorizedAdminsList] = useState(DEFAULT_ADMINS);
@@ -190,7 +182,17 @@ export default function AdminDashboard() {
           console.warn('[Admin Dashboard] localStorage merge notice:', storageErr);
         }
 
-        setContactMessages(resolvedMsgs);
+        // Clean out any contact messages marked as deleted or present in deleted cache
+        const deletedMsgIds = JSON.parse(localStorage.getItem('inno_sprint_deleted_messages') || '[]');
+        const cleanMsgs = resolvedMsgs.filter(
+          (m) =>
+            m &&
+            m.status !== '__DELETED__' &&
+            (!m.id || !deletedMsgIds.includes(m.id)) &&
+            (!m.reference_code || !deletedMsgIds.includes(m.reference_code))
+        );
+
+        setContactMessages(cleanMsgs);
 
         // 3. User Roles
         const { data: rolesData } = await supabase
@@ -220,15 +222,29 @@ export default function AdminDashboard() {
       const localRegs = JSON.parse(localStorage.getItem('inno_sprint_registrations') || '[]');
       setRegistrations(localRegs);
       const localMsgs = JSON.parse(localStorage.getItem('inno_sprint_contact_messages') || '[]');
-      setContactMessages(localMsgs);
+      const deletedMsgIds = JSON.parse(localStorage.getItem('inno_sprint_deleted_messages') || '[]');
+      const cleanLocalMsgs = localMsgs.filter(
+        (m) =>
+          m &&
+          m.status !== '__DELETED__' &&
+          (!m.id || !deletedMsgIds.includes(m.id)) &&
+          (!m.reference_code || !deletedMsgIds.includes(m.reference_code))
+      );
+      setContactMessages(cleanLocalMsgs);
+
       const localAdmins = JSON.parse(
         localStorage.getItem('inno_sprint_authorized_admins') || '[]'
       );
+      const revokedAdmins = JSON.parse(
+        localStorage.getItem('inno_sprint_revoked_admins') || '[]'
+      );
       const merged = [...DEFAULT_ADMINS];
       localAdmins.forEach((item) => {
+        const cleanEmail = item?.email?.toLowerCase();
         if (
-          item?.email &&
-          !merged.some((m) => m.email.toLowerCase() === item.email.toLowerCase())
+          cleanEmail &&
+          !revokedAdmins.includes(cleanEmail) &&
+          !merged.some((m) => m.email.toLowerCase() === cleanEmail)
         ) {
           merged.push(item);
         }
@@ -454,6 +470,77 @@ export default function AdminDashboard() {
     return true;
   };
 
+  // Handle contact message deletion (permanently delete inquiry/mail)
+  const handleDeleteMessage = async (msgItem) => {
+    if (!msgItem) return false;
+    const msgId = msgItem.id;
+    const refCode = msgItem.reference_code;
+
+    if (
+      !confirm(
+        `Are you sure you want to permanently delete inquiry "${msgItem.subject || refCode || 'Ticket'}" from ${msgItem.name || msgItem.email}?`
+      )
+    ) {
+      return false;
+    }
+
+    if (isSupabaseConfigured) {
+      try {
+        let deletedInDatabase = false;
+        try {
+          if (msgId) {
+            const { error: dErr } = await supabase.from('contact_messages').delete().eq('id', msgId);
+            if (!dErr) deletedInDatabase = true;
+          } else if (refCode) {
+            const { error: dErr } = await supabase.from('contact_messages').delete().eq('reference_code', refCode);
+            if (!dErr) deletedInDatabase = true;
+          }
+        } catch (delErr) {
+          console.warn('[Admin] Direct delete message notice:', delErr);
+        }
+
+        // Dual-resilience fallback: mark as __DELETED__ in Supabase so RLS blocks don't revive it
+        if (!deletedInDatabase) {
+          try {
+            if (msgId) {
+              await supabase.from('contact_messages').update({ status: '__DELETED__' }).eq('id', msgId);
+            } else if (refCode) {
+              await supabase.from('contact_messages').update({ status: '__DELETED__' }).eq('reference_code', refCode);
+            }
+          } catch (mErr) {
+            console.warn('[Admin] Notice marking message as deleted:', mErr);
+          }
+        }
+      } catch (err) {
+        console.error('[Admin] Message delete operation failed:', err);
+      }
+    }
+
+    // Persist to local deleted messages registry
+    try {
+      const deletedList = JSON.parse(localStorage.getItem('inno_sprint_deleted_messages') || '[]');
+      if (msgId && !deletedList.includes(msgId)) deletedList.push(msgId);
+      if (refCode && !deletedList.includes(refCode)) deletedList.push(refCode);
+      localStorage.setItem('inno_sprint_deleted_messages', JSON.stringify(deletedList));
+
+      const localMsgs = JSON.parse(localStorage.getItem('inno_sprint_contact_messages') || '[]');
+      const updatedLocal = localMsgs.filter(
+        (m) => !(m.id === msgId || (refCode && m.reference_code === refCode))
+      );
+      localStorage.setItem('inno_sprint_contact_messages', JSON.stringify(updatedLocal));
+    } catch (e) {
+      console.warn('[Admin] localStorage message deletion notice:', e);
+    }
+
+    // Update in-memory state
+    setContactMessages((prev) =>
+      prev.filter((m) => !(m.id === msgId || (refCode && m.reference_code === refCode)))
+    );
+
+    toast.success('Support inquiry deleted successfully');
+    return true;
+  };
+
   // Export registrations CSV
   const exportCSV = () => {
     toast.info('Generating registrations CSV export...');
@@ -629,6 +716,7 @@ export default function AdminDashboard() {
                   contactMessages={contactMessages}
                   setContactMessages={setContactMessages}
                   onRefreshMessages={fetchAdminData}
+                  onDeleteMessage={handleDeleteMessage}
                   loading={loading}
                   adminUser={user}
                 />

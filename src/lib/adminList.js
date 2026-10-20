@@ -1,125 +1,100 @@
 // Authorized Staff & Admin registry helper for INNOSPRINT 2026
 // Syncs authorized coordinators and judges across all devices using Supabase cloud persistence
 
-import { supabase, isSupabaseConfigured } from './supabase';
+import { supabase, isSupabaseConfigured } from './supabase.js';
 
-export const KNOWN_ADMINS = [
-  { email: 'rajavardhan445@gmail.com', name: 'Raja Vardhan', full_name: 'Raja Vardhan', role: 'superadmin' },
-  { email: '24bq5a6135@vvit.net', name: 'Ujwal', full_name: 'Ujwal', role: 'organizer' },
-  { email: 'admin@vvit.ac.in', name: 'VVITU Admin', full_name: 'VVITU Admin', role: 'superadmin' },
-  { email: 'organizer@vvit.net', name: 'Hackathon Organizer', full_name: 'Hackathon Organizer', role: 'organizer' }
-];
+// Immutable primary site owner
+export const PRIMARY_OWNER = {
+  email: 'rajavardhan445@gmail.com',
+  name: 'Raja Vardhan',
+  full_name: 'Raja Vardhan',
+  role: 'superadmin',
+  added_by: 'Primary Owner',
+};
 
-// In-memory cache of authorized administrators synced from Supabase
+export const KNOWN_ADMINS = [PRIMARY_OWNER];
+
+// In-memory cache of authorized administrators and revoked email list
 let cachedAdmins = null;
+let cachedRevoked = [];
+
+function normalizeEmail(email) {
+  return (email || '').trim().toLowerCase();
+}
+
+function getRevokedList() {
+  if (Array.isArray(cachedRevoked) && cachedRevoked.length > 0) {
+    return cachedRevoked;
+  }
+  try {
+    const stored = JSON.parse(localStorage.getItem('inno_sprint_revoked_admins') || '[]');
+    if (Array.isArray(stored)) {
+      cachedRevoked = stored.map(normalizeEmail);
+      return cachedRevoked;
+    }
+  } catch {}
+  return [];
+}
 
 /**
  * Synchronously checks if an email belongs to an authorized admin or staff member.
- * Checks memory cache, KNOWN_ADMINS, and localStorage.
+ * Strictly verifies against the revoked list so deleted emails are immediately denied.
  */
 export function checkIsAdminEmail(rawEmail) {
   if (!rawEmail) return null;
-  const clean = rawEmail.trim().toLowerCase();
+  const clean = normalizeEmail(rawEmail);
+
+  // 0. If email was deleted/revoked, strictly deny access across all devices
+  const revoked = getRevokedList();
+  if (revoked.includes(clean)) {
+    return null;
+  }
 
   // 1. Check in-memory cache
   if (Array.isArray(cachedAdmins)) {
-    const foundCached = cachedAdmins.find((a) => a.email && a.email.toLowerCase() === clean);
+    const foundCached = cachedAdmins.find((a) => a.email && normalizeEmail(a.email) === clean);
     if (foundCached) {
       return {
-        email: foundCached.email.toLowerCase(),
+        email: clean,
         name: foundCached.full_name || foundCached.name || 'Organizer',
         role: foundCached.role || 'organizer',
       };
     }
   }
 
-  // 2. Direct match with primary admin roster
-  const found = KNOWN_ADMINS.find((a) => a.email.toLowerCase() === clean);
-  if (found) return found;
+  // 2. Direct match with primary site owner
+  if (clean === normalizeEmail(PRIMARY_OWNER.email)) {
+    return PRIMARY_OWNER;
+  }
 
   // 3. Check localStorage authorized admins list
   try {
     const local = JSON.parse(localStorage.getItem('inno_sprint_authorized_admins') || '[]');
-    const localFound = local.find((a) => a.email && a.email.toLowerCase() === clean);
-    if (localFound) {
-      return {
-        email: localFound.email.toLowerCase(),
-        name: localFound.full_name || localFound.name || 'Organizer',
-        role: localFound.role || 'organizer',
-      };
+    if (Array.isArray(local)) {
+      const localFound = local.find((a) => a?.email && normalizeEmail(a.email) === clean);
+      if (localFound) {
+        return {
+          email: clean,
+          name: localFound.full_name || localFound.name || 'Organizer',
+          role: localFound.role || 'organizer',
+        };
+      }
     }
-  } catch (e) {
-    // Ignore JSON parse errors
-  }
-
-  // 4. Keyword heuristic fallback
-  if (clean.includes('admin') || clean.includes('organizer')) {
-    return {
-      email: clean,
-      name: 'INNOSPRINT Staff',
-      role: 'organizer',
-    };
-  }
+  } catch {}
 
   return null;
 }
 
 /**
  * Asynchronously loads the authoritative authorized admins list from Supabase cloud
- * so any device gets the full roster of added staff, coordinators, and judges.
+ * and strictly honors the revoked blacklist so deleted admins never reappear on refresh or other devices.
  */
 export async function fetchCloudAuthorizedAdmins() {
-  const merged = [...KNOWN_ADMINS];
-
-  // Merge with localStorage first
-  try {
-    const local = JSON.parse(localStorage.getItem('inno_sprint_authorized_admins') || '[]');
-    if (Array.isArray(local)) {
-      local.forEach((item) => {
-        if (item?.email && !merged.some((m) => m.email.toLowerCase() === item.email.toLowerCase())) {
-          merged.push({
-            email: item.email.toLowerCase(),
-            name: item.full_name || item.name || 'Organizer',
-            full_name: item.full_name || item.name || 'Organizer',
-            role: item.role || 'organizer',
-            added_by: item.added_by || 'system',
-            created_at: item.created_at || new Date().toISOString(),
-          });
-        }
-      });
-    }
-  } catch {
-    // Ignore parse errors
-  }
+  let cloudAdmins = [];
+  let cloudRevoked = [];
+  let fetchedFromCloud = false;
 
   if (isSupabaseConfigured) {
-    // 1. Check dedicated authorized_admins table if available
-    try {
-      const { data: authAdminData } = await supabase
-        .from('authorized_admins')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (Array.isArray(authAdminData) && authAdminData.length > 0) {
-        authAdminData.forEach((item) => {
-          if (item?.email && !merged.some((m) => m.email.toLowerCase() === item.email.toLowerCase())) {
-            merged.push({
-              id: item.id,
-              email: item.email.toLowerCase(),
-              name: item.full_name || 'Organizer',
-              full_name: item.full_name || 'Organizer',
-              role: item.role || 'organizer',
-              added_by: item.added_by || 'system',
-              created_at: item.created_at || new Date().toISOString(),
-            });
-          }
-        });
-      }
-    } catch {
-      // Table may not exist yet
-    }
-
-    // 2. Check cloud registry record (reference_code = 'SYS-AUTH-ADMINS') in registrations
     try {
       const { data: sysRecord } = await supabase
         .from('registrations')
@@ -131,34 +106,83 @@ export async function fetchCloudAuthorizedAdmins() {
         try {
           const parsed = JSON.parse(sysRecord.organizer_notes);
           if (Array.isArray(parsed)) {
-            parsed.forEach((item) => {
-              if (item?.email && !merged.some((m) => m.email.toLowerCase() === item.email.toLowerCase())) {
-                merged.push({
-                  email: item.email.toLowerCase(),
-                  name: item.full_name || item.name || 'Organizer',
-                  full_name: item.full_name || item.name || 'Organizer',
-                  role: item.role || 'organizer',
-                  added_by: item.added_by || 'system',
-                  created_at: item.created_at || new Date().toISOString(),
-                });
-              }
-            });
+            // Legacy format: raw array of admins
+            cloudAdmins = parsed;
+            fetchedFromCloud = true;
+          } else if (parsed && typeof parsed === 'object') {
+            // New structure: { admins: [...], revoked: [...] }
+            if (Array.isArray(parsed.admins)) cloudAdmins = parsed.admins;
+            if (Array.isArray(parsed.revoked)) cloudRevoked = parsed.revoked.map(normalizeEmail);
+            fetchedFromCloud = true;
           }
-        } catch {
-          // JSON parse notice
+        } catch (parseErr) {
+          console.warn('[Admin Registry] JSON parse notice:', parseErr);
         }
       }
     } catch (e) {
-      console.warn('[Admin Registry] SYS-AUTH-ADMINS fetch notice:', e);
+      console.warn('[Admin Registry] SYS-AUTH-ADMINS fetch error:', e);
     }
   }
 
-  cachedAdmins = merged;
+  // If not reachable or offline, fallback to local storage
+  if (!fetchedFromCloud) {
+    try {
+      const local = JSON.parse(localStorage.getItem('inno_sprint_authorized_admins') || '[]');
+      if (Array.isArray(local)) cloudAdmins = local;
+    } catch {}
+    try {
+      const localRev = JSON.parse(localStorage.getItem('inno_sprint_revoked_admins') || '[]');
+      if (Array.isArray(localRev)) cloudRevoked = localRev.map(normalizeEmail);
+    } catch {}
+  }
+
+  // Merge any local revoked cache to be thoroughly safe
+  const allRevoked = [...new Set([...cloudRevoked, ...getRevokedList()])];
+
+  // Start always with the immutable primary owner
+  const finalRoster = [
+    {
+      id: 'main_admin',
+      email: PRIMARY_OWNER.email.toLowerCase(),
+      name: PRIMARY_OWNER.name,
+      full_name: PRIMARY_OWNER.full_name,
+      role: PRIMARY_OWNER.role,
+      added_by: 'Primary Owner',
+      created_at: '2026-03-01T00:00:00.000Z',
+    },
+  ];
+
+  // Add any active admin that is NOT revoked and NOT primary owner duplicate
+  cloudAdmins.forEach((item) => {
+    if (!item?.email) return;
+    const clean = normalizeEmail(item.email);
+    if (clean === normalizeEmail(PRIMARY_OWNER.email)) return;
+    if (allRevoked.includes(clean)) return; // Strictly ignore deleted/revoked emails
+
+    if (!finalRoster.some((m) => normalizeEmail(m.email) === clean)) {
+      finalRoster.push({
+        id: item.id || 'adm_' + clean.replace(/[^a-zA-Z0-9]/g, '_'),
+        email: clean,
+        name: item.full_name || item.name || 'Organizer',
+        full_name: item.full_name || item.name || 'Organizer',
+        role: item.role || 'organizer',
+        added_by: item.added_by || 'system',
+        created_at: item.created_at || new Date().toISOString(),
+      });
+    }
+  });
+
+  // Update in-memory caches
+  cachedAdmins = finalRoster;
+  cachedRevoked = allRevoked;
+
+  // Persist clean authoritative state in localStorage
   try {
-    localStorage.setItem('inno_sprint_authorized_admins', JSON.stringify(merged));
+    localStorage.setItem('inno_sprint_authorized_admins', JSON.stringify(finalRoster));
+    localStorage.setItem('inno_sprint_revoked_admins', JSON.stringify(allRevoked));
   } catch {}
 
-  return merged;
+  return finalRoster;
 }
 
 /**
@@ -167,16 +191,21 @@ export async function fetchCloudAuthorizedAdmins() {
  */
 export async function checkIsAdminEmailAsync(rawEmail) {
   if (!rawEmail) return null;
+  const clean = normalizeEmail(rawEmail);
+
+  // Check if revoked first
+  const revoked = getRevokedList();
+  if (revoked.includes(clean)) return null;
+
   const localMatch = checkIsAdminEmail(rawEmail);
   if (localMatch) return localMatch;
 
   // Not in local cache; query Supabase cloud registry
   const cloudList = await fetchCloudAuthorizedAdmins();
-  const clean = rawEmail.trim().toLowerCase();
-  const cloudMatch = cloudList.find((a) => a.email && a.email.toLowerCase() === clean);
+  const cloudMatch = cloudList.find((a) => a.email && normalizeEmail(a.email) === clean);
   if (cloudMatch) {
     return {
-      email: cloudMatch.email.toLowerCase(),
+      email: clean,
       name: cloudMatch.full_name || cloudMatch.name || 'Organizer',
       role: cloudMatch.role || 'organizer',
     };
@@ -195,8 +224,13 @@ export async function saveCloudAuthorizedAdmin({
   role = 'organizer',
   added_by = 'rajavardhan445@gmail.com',
 }) {
-  const cleanEmail = email.trim().toLowerCase();
+  const cleanEmail = normalizeEmail(email);
   const cleanName = full_name.trim();
+
+  // Load current cloud state
+  const currentAdmins = await fetchCloudAuthorizedAdmins();
+  // If this email was previously revoked, un-revoke it upon re-authorization
+  const currentRevoked = getRevokedList().filter((e) => e !== cleanEmail);
 
   const newAdminItem = {
     id: 'adm_' + Date.now(),
@@ -208,20 +242,26 @@ export async function saveCloudAuthorizedAdmin({
     created_at: new Date().toISOString(),
   };
 
-  // Fetch current list and append/replace
-  const currentList = await fetchCloudAuthorizedAdmins();
-  const updated = [
+  const updatedAdmins = [
     newAdminItem,
-    ...currentList.filter((a) => a.email.toLowerCase() !== cleanEmail),
+    ...currentAdmins.filter((a) => normalizeEmail(a.email) !== cleanEmail),
   ];
 
-  cachedAdmins = updated;
+  cachedAdmins = updatedAdmins;
+  cachedRevoked = currentRevoked;
+
   try {
-    localStorage.setItem('inno_sprint_authorized_admins', JSON.stringify(updated));
+    localStorage.setItem('inno_sprint_authorized_admins', JSON.stringify(updatedAdmins));
+    localStorage.setItem('inno_sprint_revoked_admins', JSON.stringify(currentRevoked));
   } catch {}
 
   if (isSupabaseConfigured) {
-    // 1. Save to SYS-AUTH-ADMINS cloud record in registrations (accessible from ANY device)
+    const payload = JSON.stringify({
+      admins: updatedAdmins,
+      revoked: currentRevoked,
+      last_updated: new Date().toISOString(),
+    });
+
     try {
       const { data: existingSys } = await supabase
         .from('registrations')
@@ -233,7 +273,7 @@ export async function saveCloudAuthorizedAdmin({
         await supabase
           .from('registrations')
           .update({
-            organizer_notes: JSON.stringify(updated),
+            organizer_notes: payload,
             updated_at: new Date().toISOString(),
           })
           .eq('reference_code', 'SYS-AUTH-ADMINS');
@@ -247,14 +287,13 @@ export async function saveCloudAuthorizedAdmin({
             applicant_name: 'SYSTEM_CONFIG',
             applicant_email: 'system-authorized-admins@innosprint.internal',
             status: 'approved',
-            organizer_notes: JSON.stringify(updated),
+            organizer_notes: payload,
           });
       }
     } catch (sysErr) {
       console.warn('[Admin Registry] Error saving to SYS-AUTH-ADMINS:', sysErr);
     }
 
-    // 2. Also try saving to authorized_admins table in case it exists
     try {
       await supabase.from('authorized_admins').upsert(
         {
@@ -265,34 +304,50 @@ export async function saveCloudAuthorizedAdmin({
         },
         { onConflict: 'email' }
       );
-    } catch {
-      // Table may not exist yet
-    }
+    } catch {}
   }
 
-  return updated;
+  return updatedAdmins;
 }
 
 /**
- * Removes an authorized administrator from both Supabase cloud and local storage.
+ * Removes an authorized administrator from both Supabase cloud and local storage
+ * and records them in the revoked blacklist so they never reappear across devices or on page refresh.
  */
 export async function removeCloudAuthorizedAdmin(email) {
-  const cleanEmail = email.trim().toLowerCase();
-  const currentList = await fetchCloudAuthorizedAdmins();
-  const updated = currentList.filter((a) => a.email.toLowerCase() !== cleanEmail);
+  const cleanEmail = normalizeEmail(email);
 
-  cachedAdmins = updated;
+  if (cleanEmail === normalizeEmail(PRIMARY_OWNER.email)) {
+    throw new Error('Primary owner (rajavardhan445@gmail.com) cannot be deleted.');
+  }
+
+  // Load current cloud state
+  const currentAdmins = await fetchCloudAuthorizedAdmins();
+  const currentRevoked = getRevokedList();
+
+  const updatedAdmins = currentAdmins.filter((a) => normalizeEmail(a.email) !== cleanEmail);
+  const updatedRevoked = [...new Set([...currentRevoked, cleanEmail])];
+
+  cachedAdmins = updatedAdmins;
+  cachedRevoked = updatedRevoked;
+
   try {
-    localStorage.setItem('inno_sprint_authorized_admins', JSON.stringify(updated));
+    localStorage.setItem('inno_sprint_authorized_admins', JSON.stringify(updatedAdmins));
+    localStorage.setItem('inno_sprint_revoked_admins', JSON.stringify(updatedRevoked));
   } catch {}
 
   if (isSupabaseConfigured) {
-    // 1. Update SYS-AUTH-ADMINS in registrations
+    const payload = JSON.stringify({
+      admins: updatedAdmins,
+      revoked: updatedRevoked,
+      last_updated: new Date().toISOString(),
+    });
+
     try {
       await supabase
         .from('registrations')
         .update({
-          organizer_notes: JSON.stringify(updated),
+          organizer_notes: payload,
           updated_at: new Date().toISOString(),
         })
         .eq('reference_code', 'SYS-AUTH-ADMINS');
@@ -300,11 +355,10 @@ export async function removeCloudAuthorizedAdmin(email) {
       console.warn('[Admin Registry] Error updating SYS-AUTH-ADMINS on remove:', sysErr);
     }
 
-    // 2. Also attempt delete from authorized_admins table
     try {
       await supabase.from('authorized_admins').delete().ilike('email', cleanEmail);
     } catch {}
   }
 
-  return updated;
+  return updatedAdmins;
 }
