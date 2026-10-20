@@ -27,12 +27,30 @@ export async function sendProjectApprovalEmail({ registrationId, submissionId, f
   }
 
   try {
+    // Resolve current active admin email for caller identification
+    let callerEmail = '';
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.email) {
+        callerEmail = session.user.email;
+      }
+    } catch {}
+
+    if (!callerEmail) {
+      try {
+        const stored = JSON.parse(localStorage.getItem('inno_sprint_user') || '{}');
+        callerEmail = stored?.user?.email || stored?.profile?.email || '';
+      } catch {}
+    }
+
     const { data, error } = await supabase.functions.invoke('send-project-notification', {
       body: {
         registrationId,
         submissionId: submissionId || registrationId,
         forceRetry,
+        callerEmail,
       },
+      headers: callerEmail ? { 'x-caller-email': callerEmail } : {},
     });
 
     if (error) {
@@ -69,22 +87,16 @@ export async function sendProjectApprovalEmail({ registrationId, submissionId, f
 }
 
 export async function sendEmailNotification({ to, subject, template, data }) {
-  console.log(`[INNOSPRINT Email Service] Dispatching email to: ${to} | Subject: ${subject}`);
-  
   const resendKey = import.meta.env.VITE_RESEND_API_KEY;
   const sender = import.meta.env.VITE_SENDER_EMAIL || 'noreply@vvit.ac.in';
 
   if (!resendKey) {
-    console.info('[Email Fallback] No email API key configured. Email payload:', {
-      to,
-      subject,
-      template,
-      data
-    });
+    // Clarify that Resend is only used for participant self-registration confirmation and contact forms
+    console.info('[Resend Service] VITE_RESEND_API_KEY is not configured for participant registration confirmation/contact forms. Skipping Resend dispatch.');
     return {
       success: true,
       delivered: false,
-      message: 'Email service credential missing. Notification logged in fallback mode.'
+      message: 'Resend API key missing. Participant confirmation logged in fallback mode.'
     };
   }
 

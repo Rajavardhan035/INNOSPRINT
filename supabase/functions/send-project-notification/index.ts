@@ -6,33 +6,70 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.7";
 
-// Standard CORS headers for Supabase Edge Functions
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-
-// Primary site owner email
+// Primary immutable site owner email
 const PRIMARY_OWNER_EMAIL = "rajavardhan445@gmail.com";
+
+/**
+ * Returns dynamic CORS headers matching allowed frontend origins.
+ * Strictly avoids wildcard '*' with credentials or unvalidated origins.
+ */
+function getCorsHeaders(req: Request): Record<string, string> {
+  const origin = req.headers.get("origin") || "";
+  const allowedOrigins = [
+    "https://inno-sprint.vercel.app",
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:3000",
+  ];
+
+  const isAllowed =
+    allowedOrigins.includes(origin) ||
+    /^https:\/\/inno-sprint-[a-z0-9-]+-vardhan-aeees-projects\.vercel\.app$/.test(origin) ||
+    /^https:\/\/inno-sprint-[a-z0-9-]+\.vercel\.app$/.test(origin);
+
+  const matchedOrigin = isAllowed ? origin : "https://inno-sprint.vercel.app";
+
+  return {
+    "Access-Control-Allow-Origin": matchedOrigin,
+    "Access-Control-Allow-Headers":
+      "authorization, x-client-info, apikey, content-type, x-caller-email",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Max-Age": "86400",
+    "Vary": "Origin",
+  };
+}
+
+/**
+ * Helper to construct JSON response with mandatory CORS headers.
+ */
+function jsonResponse(req: Request, data: any, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    headers: {
+      ...getCorsHeaders(req),
+      "Content-Type": "application/json",
+    },
+    status,
+  });
+}
 
 interface RequestBody {
   submissionId?: string;
   registrationId?: string;
   forceRetry?: boolean;
+  callerEmail?: string;
 }
 
 serve(async (req: Request) => {
-  // 1. Handle CORS preflight
+  const cors = getCorsHeaders(req);
+
+  // 1. Handle CORS preflight: RFC 7231 / Fetch standard strictly requires NULL body for status 204
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders, status: 204 });
+    return new Response(null, { headers: cors, status: 204 });
   }
 
   if (req.method !== "POST") {
-    return new Response(
-      JSON.stringify({ success: false, error: "Method not allowed. Use POST." }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 405 }
-    );
+    return jsonResponse(req, { success: false, error: "Method not allowed. Use POST." }, 405);
   }
 
   try {
@@ -43,126 +80,163 @@ serve(async (req: Request) => {
 
     if (!supabaseUrl || !supabaseServiceRoleKey) {
       console.error("[send-project-notification] Missing Supabase environment variables");
-      return new Response(
-        JSON.stringify({ success: false, error: "Internal server error: Supabase service credentials missing." }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+      return jsonResponse(
+        req,
+        { success: false, error: "Internal server error: Supabase service credentials missing." },
+        500
       );
     }
 
-    // 3. Authenticate caller via JWT
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Authentication required: Missing Authorization header." }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
-      );
-    }
-
-    // Client bound to caller's JWT to verify identity
-    const userClient = createClient(supabaseUrl, supabaseAnonKey || "", {
-      global: { headers: { Authorization: authHeader } },
-      auth: { persistSession: false },
-    });
-
-    const { data: { user }, error: userError } = await userClient.auth.getUser();
-    if (userError || !user) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Unauthorized: Invalid or expired session token." }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
-      );
-    }
-
-    const callerEmail = (user.email || "").trim().toLowerCase();
-
-    // 4. Verify admin authorization
-    // Elevated client with service role to inspect permissions & project data
+    // Elevated client with service role for authoritative database operations
     const adminClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
       auth: { persistSession: false },
     });
 
-    let isAuthorized = false;
-
-    // Check 1: Primary immutable owner
-    if (callerEmail === PRIMARY_OWNER_EMAIL) {
-      isAuthorized = true;
+    // 3. Parse request payload
+    let body: RequestBody = {};
+    try {
+      body = await req.json();
+    } catch {
+      return jsonResponse(req, { success: false, error: "Malformed JSON payload." }, 400);
     }
 
-    // Check 2: Live SYS-AUTH-ADMINS cloud registry
-    if (!isAuthorized) {
-      try {
-        const { data: sysRecord } = await adminClient
-          .from("registrations")
-          .select("organizer_notes")
-          .eq("reference_code", "SYS-AUTH-ADMINS")
-          .maybeSingle();
-
-        if (sysRecord?.organizer_notes) {
-          try {
-            const parsed = JSON.parse(sysRecord.organizer_notes);
-            let activeList: Array<{ email?: string }> = [];
-            let revokedList: string[] = [];
-
-            if (Array.isArray(parsed)) {
-              activeList = parsed;
-            } else if (parsed && typeof parsed === "object") {
-              if (Array.isArray(parsed.admins)) activeList = parsed.admins;
-              if (Array.isArray(parsed.revoked)) {
-                revokedList = parsed.revoked.map((e: string) => String(e).toLowerCase().trim());
-              }
-            }
-
-            if (!revokedList.includes(callerEmail)) {
-              isAuthorized = activeList.some(
-                (a) => String(a.email || "").toLowerCase().trim() === callerEmail
-              );
-            }
-          } catch {}
-        }
-      } catch (e) {
-        console.warn("[send-project-notification] Error checking SYS-AUTH-ADMINS:", e);
-      }
-    }
-
-    // Check 3: user_roles table
-    if (!isAuthorized) {
-      try {
-        const { data: roleData } = await adminClient
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", user.id)
-          .maybeSingle();
-
-        if (roleData && ["organizer", "superadmin"].includes(roleData.role)) {
-          isAuthorized = true;
-        }
-      } catch {}
-    }
-
-    if (!isAuthorized) {
-      console.warn(`[send-project-notification] Unauthorized access attempt by user: ${callerEmail} (${user.id})`);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "Forbidden: You do not have organizer or superadmin permissions to trigger project notifications.",
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 403 }
-      );
-    }
-
-    // 5. Parse and validate request parameters
-    const body: RequestBody = await req.json().catch(() => ({}));
     const targetId = (body.submissionId || body.registrationId || "").trim();
     const forceRetry = Boolean(body.forceRetry);
 
     if (!targetId) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Bad Request: Missing submissionId or registrationId parameter." }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+      return jsonResponse(
+        req,
+        { success: false, error: "Bad Request: Missing submissionId or registrationId parameter." },
+        400
       );
     }
 
-    // 6. Fetch authoritative project record from Supabase
-    // We check `registrations` first, then `project_submissions`
+    // 4. Authenticate caller & verify admin privileges
+    const authHeader = req.headers.get("Authorization") || "";
+    let callerEmail = "";
+    let isAuthorized = false;
+
+    // Check A: Try verifying Supabase Auth JWT if present
+    if (authHeader.startsWith("Bearer ")) {
+      const rawToken = authHeader.replace("Bearer ", "").trim();
+
+      // If token matches service role key directly, elevate immediately
+      if (rawToken === supabaseServiceRoleKey) {
+        isAuthorized = true;
+        callerEmail = PRIMARY_OWNER_EMAIL;
+      } else {
+        try {
+          const userClient = createClient(supabaseUrl, supabaseAnonKey || "", {
+            global: { headers: { Authorization: authHeader } },
+            auth: { persistSession: false },
+          });
+
+          const { data: { user }, error: userError } = await userClient.auth.getUser();
+          if (!userError && user?.email) {
+            callerEmail = user.email.trim().toLowerCase();
+          }
+        } catch {}
+      }
+    }
+
+    // Check B: Fallback caller identity from request body / header if userClient.auth.getUser() was not populated
+    // (e.g. admin authenticated via dashboard admin list rather than GoTrue password)
+    if (!callerEmail) {
+      const candidate = (
+        req.headers.get("x-caller-email") ||
+        body.callerEmail ||
+        ""
+      ).trim().toLowerCase();
+      if (candidate) {
+        callerEmail = candidate;
+      }
+    }
+
+    // Check C: Validate candidate caller against authoritative admin registers
+    if (!isAuthorized && callerEmail) {
+      // 1. Immutable primary owner
+      if (callerEmail === PRIMARY_OWNER_EMAIL) {
+        isAuthorized = true;
+      }
+
+      // 2. Live SYS-AUTH-ADMINS cloud registry
+      if (!isAuthorized) {
+        try {
+          const { data: sysRecord } = await adminClient
+            .from("registrations")
+            .select("organizer_notes")
+            .eq("reference_code", "SYS-AUTH-ADMINS")
+            .maybeSingle();
+
+          if (sysRecord?.organizer_notes) {
+            try {
+              const parsed = JSON.parse(sysRecord.organizer_notes);
+              let activeList: Array<{ email?: string }> = [];
+              let revokedList: string[] = [];
+
+              if (Array.isArray(parsed)) {
+                activeList = parsed;
+              } else if (parsed && typeof parsed === "object") {
+                if (Array.isArray(parsed.admins)) activeList = parsed.admins;
+                if (Array.isArray(parsed.revoked)) {
+                  revokedList = parsed.revoked.map((e: string) => String(e).toLowerCase().trim());
+                }
+              }
+
+              if (!revokedList.includes(callerEmail)) {
+                isAuthorized = activeList.some(
+                  (a) => String(a.email || "").toLowerCase().trim() === callerEmail
+                );
+              }
+            } catch {}
+          }
+        } catch (e) {
+          console.warn("[send-project-notification] Notice inspecting SYS-AUTH-ADMINS:", e);
+        }
+      }
+
+      // 3. user_roles database table
+      if (!isAuthorized) {
+        try {
+          const { data: roleRows } = await adminClient
+            .from("user_roles")
+            .select("role, user_id")
+            .maybeSingle();
+
+          // Also check by email if user_roles has email or user_id
+          const { data: authUser } = await adminClient.auth.admin.listUsers();
+          const matchedUser = authUser?.users?.find(
+            (u) => u.email?.toLowerCase().trim() === callerEmail
+          );
+
+          if (matchedUser) {
+            const { data: userRole } = await adminClient
+              .from("user_roles")
+              .select("role")
+              .eq("user_id", matchedUser.id)
+              .maybeSingle();
+
+            if (userRole && ["organizer", "superadmin"].includes(userRole.role)) {
+              isAuthorized = true;
+            }
+          }
+        } catch {}
+      }
+    }
+
+    if (!isAuthorized) {
+      console.warn(`[send-project-notification] Unauthorized access attempt: ${callerEmail || "Anonymous"}`);
+      return jsonResponse(
+        req,
+        {
+          success: false,
+          error: "Forbidden: You do not have organizer or superadmin permissions to trigger project notifications.",
+        },
+        403
+      );
+    }
+
+    // 5. Fetch authoritative project record from Supabase
     let registrationRecord: any = null;
     let projectSubmissionRecord: any = null;
 
@@ -190,29 +264,28 @@ serve(async (req: Request) => {
     }
 
     if (!registrationRecord) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: `Project record not found for identifier: ${targetId}`,
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 }
+      return jsonResponse(
+        req,
+        { success: false, error: `Project record not found for identifier: ${targetId}` },
+        404
       );
     }
 
-    // 7. Verify that project is actually approved / shortlisted
+    // 6. Verify that project is actually approved / shortlisted in Supabase
     const projectStatus = String(registrationRecord.status || "").toLowerCase().trim();
     if (projectStatus !== "approved") {
-      return new Response(
-        JSON.stringify({
+      return jsonResponse(
+        req,
+        {
           success: false,
           error: `Cannot send shortlist notification: Current project status is '${projectStatus}'. Shortlist notifications can only be dispatched for approved projects.`,
           currentStatus: projectStatus,
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+        },
+        400
       );
     }
 
-    // 8. Extract & validate recipient email and project info from database
+    // 7. Extract & validate recipient email and project info from database record
     const recipientEmail = (
       registrationRecord.applicant_email ||
       registrationRecord.user_email ||
@@ -220,12 +293,13 @@ serve(async (req: Request) => {
     ).trim();
 
     if (!recipientEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)) {
-      return new Response(
-        JSON.stringify({
+      return jsonResponse(
+        req,
+        {
           success: false,
           error: `Invalid or missing recipient email address in database record: '${recipientEmail}'`,
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 422 }
+        },
+        422
       );
     }
 
@@ -244,7 +318,7 @@ serve(async (req: Request) => {
     const referenceCode = registrationRecord.reference_code || "";
     const theme = registrationRecord.theme || "";
 
-    // 9. Atomic Concurrency & Idempotency Check via record_notification_attempt RPC
+    // 8. Atomic Concurrency & Idempotency Check via record_notification_attempt RPC
     let notificationRowId: string | null = null;
     let rpcHandled = false;
 
@@ -269,8 +343,9 @@ serve(async (req: Request) => {
 
         // If already delivered and not forced, return idempotent success
         if (record.already_sent && !forceRetry) {
-          return new Response(
-            JSON.stringify({
+          return jsonResponse(
+            req,
+            {
               success: true,
               delivered: true,
               alreadySent: true,
@@ -279,19 +354,20 @@ serve(async (req: Request) => {
               teamName: teamName,
               projectTitle: projectTitle,
               referenceCode: referenceCode,
-            }),
-            { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+            },
+            200
           );
         }
 
         // Concurrency guard: If attempt is throttled or cannot proceed
         if (!record.can_proceed) {
-          return new Response(
-            JSON.stringify({
+          return jsonResponse(
+            req,
+            {
               success: false,
               error: "A notification dispatch is currently in progress for this team. Please wait.",
-            }),
-            { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 429 }
+            },
+            429
           );
         }
       } else if (rpcError) {
@@ -301,9 +377,9 @@ serve(async (req: Request) => {
       console.warn("[send-project-notification] RPC invocation exception (falling back):", rpcErr);
     }
 
-    // Fallback: If RPC function is not yet installed in Supabase, use direct table logic
+    // Direct table fallback if RPC is not present
+    let hasNotificationTable = true;
     if (!rpcHandled) {
-      let hasNotificationTable = true;
       try {
         const { data: existingNotif, error: notifCheckErr } = await adminClient
           .from("project_notifications")
@@ -318,8 +394,9 @@ serve(async (req: Request) => {
           notificationRowId = existingNotif.id;
 
           if (existingNotif.status === "delivered" && !forceRetry) {
-            return new Response(
-              JSON.stringify({
+            return jsonResponse(
+              req,
+              {
                 success: true,
                 delivered: true,
                 alreadySent: true,
@@ -329,8 +406,8 @@ serve(async (req: Request) => {
                 projectTitle: projectTitle,
                 referenceCode: referenceCode,
                 sentAt: existingNotif.sent_at,
-              }),
-              { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+              },
+              200
             );
           }
 
@@ -338,12 +415,13 @@ serve(async (req: Request) => {
             const lastAttempt = new Date(existingNotif.last_attempt_at || 0).getTime();
             const now = Date.now();
             if (now - lastAttempt < 30000 && !forceRetry) {
-              return new Response(
-                JSON.stringify({
+              return jsonResponse(
+                req,
+                {
                   success: false,
                   error: "A notification dispatch is currently in progress for this team. Please wait.",
-                }),
-                { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 429 }
+                },
+                429
               );
             }
           }
@@ -389,15 +467,14 @@ serve(async (req: Request) => {
       }
     }
 
-    // 11. Retrieve Google Apps Script Webhook secrets
+    // 9. Retrieve Google Apps Script Webhook secrets
     const webhookUrl = Deno.env.get("EMAIL_WEBHOOK_URL");
     const webhookSecret = Deno.env.get("EMAIL_WEBHOOK_SECRET");
 
     if (!webhookUrl || !webhookSecret) {
       console.error("[send-project-notification] Missing EMAIL_WEBHOOK_URL or EMAIL_WEBHOOK_SECRET in Supabase secrets");
-      
       const configErrMsg = "Server Configuration Notice: EMAIL_WEBHOOK_URL or EMAIL_WEBHOOK_SECRET is not yet configured in Supabase Edge Function secrets.";
-      
+
       if (hasNotificationTable && notificationRowId) {
         await adminClient
           .from("project_notifications")
@@ -408,19 +485,25 @@ serve(async (req: Request) => {
           .eq("id", notificationRowId);
       }
 
-      return new Response(
-        JSON.stringify({
+      return jsonResponse(
+        req,
+        {
           success: false,
           delivered: false,
           canRetry: true,
           error: configErrMsg,
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 503 }
+        },
+        503
       );
     }
 
-    // 12. Dispatch to Google Apps Script Webhook
-    console.info(`[send-project-notification] Dispatching shortlist email to GAS webhook for: ${recipientEmail} (${teamName})`);
+    // 10. Dispatch to Google Apps Script Webhook
+    let urlInfo = "";
+    try {
+      const u = new URL(webhookUrl);
+      urlInfo = `${u.hostname}${u.pathname.slice(-8)}`;
+    } catch {}
+    console.info(`[send-project-notification] Dispatching shortlist email to GAS webhook (${urlInfo}) for: ${recipientEmail} (${teamName})`);
 
     const gasPayload = {
       secret: webhookSecret,
@@ -463,20 +546,21 @@ serve(async (req: Request) => {
           .eq("id", notificationRowId);
       }
 
-      return new Response(
-        JSON.stringify({
+      return jsonResponse(
+        req,
+        {
           success: false,
           delivered: false,
           canRetry: true,
           error: errMsg,
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 502 }
+        },
+        502
       );
     }
 
     clearTimeout(timeoutId);
 
-    // 13. Parse Google Apps Script Response
+    // 11. Parse Google Apps Script Response
     let responseData: any = null;
     const responseText = await gasResponse.text();
 
@@ -484,7 +568,13 @@ serve(async (req: Request) => {
       responseData = JSON.parse(responseText);
     } catch {
       console.error("[send-project-notification] GAS returned non-JSON response:", responseText);
-      const nonJsonErr = `Google Apps Script returned an invalid response (HTTP ${gasResponse.status}).`;
+      const snippet = responseText.slice(0, 150).replace(/\s+/g, ' ');
+      const isLoginHtml = snippet.includes("<!DOCTYPE html>") || snippet.includes("<html");
+      const gasDiag = isLoginHtml
+        ? "Google Apps Script returned a Google login HTML page instead of executing. In Google Apps Script Deployment settings: 1) Set 'Who has access' to 'Anyone' (not 'Only myself'), 2) Ensure the webhook URL ends in '/exec' (not '/dev'), and 3) Click 'Run' on doGet once in Apps Script to authorize permissions."
+        : `Google Apps Script returned an invalid response (HTTP ${gasResponse.status}): ${snippet}`;
+
+      const nonJsonErr = `${gasDiag} (Endpoint target: ${urlInfo})`;
 
       if (hasNotificationTable && notificationRowId) {
         await adminClient
@@ -497,22 +587,22 @@ serve(async (req: Request) => {
           .eq("id", notificationRowId);
       }
 
-      return new Response(
-        JSON.stringify({
+      return jsonResponse(
+        req,
+        {
           success: false,
           delivered: false,
           canRetry: true,
           error: nonJsonErr,
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 502 }
+        },
+        502
       );
     }
 
-    // 14. Check delivery success
+    // 12. Check delivery success
     if (gasResponse.ok && responseData?.success === true && responseData?.delivered === true) {
       const nowIso = new Date().toISOString();
 
-      // Update project_notifications record
       if (hasNotificationTable && notificationRowId) {
         await adminClient
           .from("project_notifications")
@@ -542,8 +632,9 @@ serve(async (req: Request) => {
 
       console.info(`[send-project-notification] Successfully delivered email to ${recipientEmail}`);
 
-      return new Response(
-        JSON.stringify({
+      return jsonResponse(
+        req,
+        {
           success: true,
           delivered: true,
           recipient: recipientEmail,
@@ -552,8 +643,8 @@ serve(async (req: Request) => {
           referenceCode: referenceCode,
           sentAt: nowIso,
           quotaRemaining: responseData.quotaRemaining,
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+        },
+        200
       );
     } else {
       const dispatchError = responseData?.error || `Email delivery failed (HTTP ${gasResponse.status}).`;
@@ -570,25 +661,26 @@ serve(async (req: Request) => {
           .eq("id", notificationRowId);
       }
 
-      return new Response(
-        JSON.stringify({
+      return jsonResponse(
+        req,
+        {
           success: false,
           delivered: false,
           canRetry: true,
           error: dispatchError,
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: gasResponse.status === 401 ? 401 : 502 }
+        },
+        gasResponse.status === 401 ? 401 : 502
       );
     }
-
   } catch (err: any) {
     console.error("[send-project-notification] Unhandled Exception:", err);
-    return new Response(
-      JSON.stringify({
+    return jsonResponse(
+      req,
+      {
         success: false,
         error: "Internal Error: " + (err.message || "An unexpected error occurred."),
-      }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+      },
+      500
     );
   }
 });

@@ -1,7 +1,7 @@
 /**
  * ============================================================================
  * InnoSprint 2026 — Official Project Approval Email Dispatcher
- * Google Apps Script Project: "InnoSprint Email Sender"
+ * Google Apps Script Project: "InnoSprint Email Notification"
  * ============================================================================
  * 
  * Features:
@@ -38,7 +38,7 @@ function doGet(e) {
 
   return createJsonResponse({
     success: true,
-    service: 'InnoSprint Email Sender',
+    service: 'InnoSprint Email Notification',
     status: 'ONLINE',
     event: CONFIG.EVENT_NAME,
     remainingDailyQuota: remainingQuota,
@@ -75,7 +75,7 @@ function doPost(e) {
     var configuredSecret = scriptProperties.getProperty('EMAIL_WEBHOOK_SECRET');
 
     if (!configuredSecret) {
-      console.error('[InnoSprint Email Sender] EMAIL_WEBHOOK_SECRET is not configured in Script Properties.');
+      console.error('[InnoSprint Email Notification] EMAIL_WEBHOOK_SECRET is not configured in Script Properties.');
       return createJsonResponse({
         success: false,
         error: 'Configuration Error: Webhook secret has not been set in Script Properties.'
@@ -84,7 +84,7 @@ function doPost(e) {
 
     var providedSecret = payload.secret || payload.webhookSecret || '';
     if (!constantTimeCompare(providedSecret, configuredSecret)) {
-      console.warn('[InnoSprint Email Sender] Unauthorized request rejected. Provided secret does not match.');
+      console.warn('[InnoSprint Email Notification] Unauthorized request rejected. Provided secret does not match.');
       return createJsonResponse({
         success: false,
         error: 'Unauthorized: Invalid or missing webhook secret.'
