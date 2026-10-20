@@ -1,5 +1,5 @@
 import { supabase, isSupabaseConfigured } from './supabase.js';
-import { checkIsAdminEmail } from './adminList.js';
+import { checkIsAdminEmail, checkIsAdminEmailAsync } from './adminList.js';
 
 // ============================================================================
 // CONFIGURATION & CONSTANTS
@@ -263,8 +263,8 @@ export async function verifyAdminCertificateAuthority(actorContext = null) {
     }
   }
 
-  // 3. Check verified KNOWN_ADMINS registry (strictly requires organizer or superadmin role)
-  const knownAdmin = checkIsAdminEmail(candidateEmail);
+  // 3. Check verified KNOWN_ADMINS and cloud registry (strictly requires organizer or superadmin role)
+  const knownAdmin = checkIsAdminEmail(candidateEmail) || (await checkIsAdminEmailAsync(candidateEmail));
   if (knownAdmin && ['organizer', 'superadmin'].includes(String(knownAdmin.role).toLowerCase())) {
     // Also ensure that if actorContext passed a role, it wasn't 'participant'
     if (actorContext?.isParticipantOverride) {

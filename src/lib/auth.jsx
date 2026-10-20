@@ -1,8 +1,13 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase, isSupabaseConfigured } from './supabase';
-import { KNOWN_ADMINS, checkIsAdminEmail } from './adminList';
+import {
+  KNOWN_ADMINS,
+  checkIsAdminEmail,
+  checkIsAdminEmailAsync,
+  fetchCloudAuthorizedAdmins,
+} from './adminList';
 
-export { KNOWN_ADMINS, checkIsAdminEmail };
+export { KNOWN_ADMINS, checkIsAdminEmail, checkIsAdminEmailAsync, fetchCloudAuthorizedAdmins };
 
 const AuthContext = createContext({});
 
@@ -18,6 +23,13 @@ export function AuthProvider({ children }) {
     let mounted = true;
 
     async function initAuth() {
+      // Prime cloud authorized admins roster across devices
+      try {
+        await fetchCloudAuthorizedAdmins();
+      } catch (e) {
+        console.warn('[Auth] Prime cloud admins notice:', e);
+      }
+
       if (isSupabaseConfigured) {
         try {
           const { data: { session } } = await supabase.auth.getSession();
@@ -33,7 +45,7 @@ export function AuthProvider({ children }) {
                 if (parsed.user && checkIsAdminEmail(parsed.user.email)) {
                   setUser(parsed.user);
                   setProfile(parsed.profile);
-                  setRole(parsed.role || 'superadmin');
+                  setRole(parsed.role || 'organizer');
                 }
               } catch (e) {
                 localStorage.removeItem('inno_sprint_user');
@@ -72,7 +84,7 @@ export function AuthProvider({ children }) {
                 if (parsed.user && checkIsAdminEmail(parsed.user.email)) {
                   setUser(parsed.user);
                   setProfile(parsed.profile);
-                  setRole(parsed.role || 'superadmin');
+                  setRole(parsed.role || 'organizer');
                   setLoading(false);
                   return;
                 }
@@ -225,13 +237,35 @@ export function AuthProvider({ children }) {
 
   const signIn = async ({ email, password }) => {
     const cleanEmail = (email || '').trim().toLowerCase();
-    const adminMeta = checkIsAdminEmail(cleanEmail);
+
+    // 1. Check if email belongs to an Authorized Admin (checks memory, local cache, and Supabase cloud)
+    const adminMeta = await checkIsAdminEmailAsync(cleanEmail);
+
+    if (adminMeta) {
+      if (isSupabaseConfigured && password) {
+        try {
+          const { data: supaData } = await supabase.auth.signInWithPassword({ email: cleanEmail, password });
+          if (supaData?.user) {
+            await fetchUserProfileAndRole(supaData.user.id, supaData.user.email);
+          }
+        } catch {
+          // Ignore background auth error; admin privileges take precedence
+        }
+      }
+
+      loginAsAdminByEmail(adminMeta.email, adminMeta.name, adminMeta.role);
+      return {
+        data: {
+          user: {
+            id: 'usr_' + adminMeta.email.replace(/[^a-zA-Z0-9]/g, '_'),
+            email: adminMeta.email,
+          },
+        },
+        error: null,
+      };
+    }
 
     if (!isSupabaseConfigured) {
-      if (adminMeta) {
-        loginAsAdminByEmail(adminMeta.email, adminMeta.name, adminMeta.role);
-        return { data: { user: { email: cleanEmail } }, error: null };
-      }
       const mockUser = { id: 'usr_demo', email: cleanEmail };
       const mockProfile = { full_name: cleanEmail.split('@')[0], email: cleanEmail };
       const sessionData = { user: mockUser, profile: mockProfile, role: 'participant' };
@@ -242,54 +276,16 @@ export function AuthProvider({ children }) {
       return { data: { user: mockUser }, error: null };
     }
 
-    // Supabase is configured
+    // Supabase is configured for regular participants
     try {
       const { data, error } = await supabase.auth.signInWithPassword({ email: cleanEmail, password });
-      
+
       if (!error && data?.user) {
         await fetchUserProfileAndRole(data.user.id, data.user.email);
-        if (adminMeta) {
-          loginAsAdminByEmail(adminMeta.email, adminMeta.name, adminMeta.role);
-        }
         return { data, error: null };
       }
 
-      // If Supabase returned an error (e.g. Email not confirmed, 429 rate limit, or invalid credentials):
-      console.warn('[Supabase Auth Sign-in warning]:', error?.message || 'sign-in issue');
-
-      // 1. If email belongs to Authorized Admin (Main Admin, Ujwal, or added admins):
-      if (adminMeta) {
-        loginAsAdminByEmail(adminMeta.email, adminMeta.name, adminMeta.role);
-        return { 
-          data: { 
-            user: { 
-              id: 'usr_' + adminMeta.email.replace(/[^a-zA-Z0-9]/g, '_'), 
-              email: adminMeta.email 
-            } 
-          }, 
-          error: null 
-        };
-      }
-
-      // 2. Check if registered in Supabase authorized_admins table
-      try {
-        const { data: authAdmin } = await supabase
-          .from('authorized_admins')
-          .select('*')
-          .ilike('email', cleanEmail)
-          .maybeSingle();
-
-        if (authAdmin) {
-          const authName = authAdmin.full_name || 'Organizer';
-          const authRole = authAdmin.role || 'organizer';
-          loginAsAdminByEmail(authAdmin.email, authName, authRole);
-          return { data: { user: { email: authAdmin.email } }, error: null };
-        }
-      } catch (checkErr) {
-        console.warn('Authorized admin check notice:', checkErr);
-      }
-
-      // 3. If regular participant encounters "Email not confirmed":
+      // If regular participant encounters "Email not confirmed":
       // Do not lock out legitimate hackathon participants because of Supabase SMTP verification
       if (error?.message?.toLowerCase().includes('email not confirmed')) {
         const pUser = { id: 'usr_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_'), email: cleanEmail };
@@ -304,10 +300,6 @@ export function AuthProvider({ children }) {
       return { data: null, error };
     } catch (err) {
       console.warn('[SignIn Catch Notice]', err);
-      if (adminMeta) {
-        loginAsAdminByEmail(adminMeta.email, adminMeta.name, adminMeta.role);
-        return { data: { user: { email: cleanEmail } }, error: null };
-      }
       return { data: null, error: err };
     }
   };

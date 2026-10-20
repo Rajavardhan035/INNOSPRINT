@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
+import { saveCloudAuthorizedAdmin, removeCloudAuthorizedAdmin } from '../../lib/adminList';
 import CountUp from './shared/CountUp';
 import { springUI } from '../../styles/motionConfig';
 
@@ -42,40 +43,17 @@ export default function RolesTab({
     setLoading(true);
 
     try {
-      if (isSupabaseConfigured) {
-        const { error } = await supabase.from('authorized_admins').upsert(
-          {
-            email: cleanEmail,
-            full_name: cleanName,
-            role: newAdminRole,
-            added_by: adminUser?.email || 'rajavardhan445@gmail.com',
-          },
-          { onConflict: 'email' }
-        );
-
-        if (error) {
-          console.warn('Supabase add admin notice:', error.message);
-        }
-      }
-
-      const newAdminItem = {
-        id: 'adm_' + Date.now(),
+      const updated = await saveCloudAuthorizedAdmin({
         email: cleanEmail,
         full_name: cleanName,
         role: newAdminRole,
         added_by: adminUser?.email || 'rajavardhan445@gmail.com',
-        created_at: new Date().toISOString(),
-      };
+      });
 
-      const updated = [
-        newAdminItem,
-        ...authorizedAdminsList.filter((a) => a.email.toLowerCase() !== cleanEmail),
-      ];
       setAuthorizedAdminsList(updated);
-      localStorage.setItem('inno_sprint_authorized_admins', JSON.stringify(updated));
 
       toast.success(
-        `Granted ${newAdminRole.toUpperCase()} access to ${cleanName} (${cleanEmail})`
+        `Granted ${newAdminRole.toUpperCase()} access to ${cleanName} (${cleanEmail}). They can now sign in on any device!`
       );
       setNewAdminName('');
       setNewAdminEmail('');
@@ -97,23 +75,14 @@ export default function RolesTab({
     if (!confirm(`Are you sure you want to revoke administrative permissions for ${adminEmail}?`))
       return;
 
-    if (isSupabaseConfigured) {
-      try {
-        await supabase
-          .from('authorized_admins')
-          .delete()
-          .ilike('email', adminEmail);
-      } catch (e) {
-        console.warn('Revoke admin notice:', e);
-      }
+    try {
+      const updated = await removeCloudAuthorizedAdmin(adminEmail);
+      setAuthorizedAdminsList(updated);
+      toast.success(`Revoked administrative access for ${adminEmail}`);
+    } catch (err) {
+      console.error('[Revoke Admin Error]', err);
+      toast.error('Failed to revoke access: ' + err.message);
     }
-
-    const updated = authorizedAdminsList.filter(
-      (a) => a.email.toLowerCase() !== adminEmail.toLowerCase()
-    );
-    setAuthorizedAdminsList(updated);
-    localStorage.setItem('inno_sprint_authorized_admins', JSON.stringify(updated));
-    toast.success(`Revoked administrative access for ${adminEmail}`);
   };
 
   return (

@@ -197,10 +197,11 @@ export default function RegisterStatusPage() {
         }
       }
 
-      // Check if this matched registration was deleted
+      // Check if this matched registration was deleted or is a system internal record
       if (matchedData) {
         const deletedList = JSON.parse(localStorage.getItem('inno_sprint_deleted_regs') || '[]');
         if (
+          matchedData.reference_code?.startsWith('SYS-') ||
           (matchedData.organizer_notes && matchedData.organizer_notes.includes('__DELETED__')) ||
           deletedList.includes(matchedData.id) ||
           deletedList.includes(matchedData.reference_code)

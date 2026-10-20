@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { useAuth, checkIsAdminEmail } from '../lib/auth';
+import { useAuth, checkIsAdminEmail, checkIsAdminEmailAsync } from '../lib/auth';
 import { Zap, Mail, Lock, User, Phone, School, Shield, AlertCircle, ArrowRight } from 'lucide-react';
 
 export default function LoginPage() {
@@ -37,7 +37,8 @@ export default function LoginPage() {
         setSuccessMsg('Authentication successful! Redirecting...');
         
         const clean = (email || '').toLowerCase().trim();
-        const isAdmin = Boolean(checkIsAdminEmail(clean));
+        const adminMeta = checkIsAdminEmail(clean) || (await checkIsAdminEmailAsync(clean));
+        const isAdmin = Boolean(adminMeta);
 
         setTimeout(() => {
           if (isAdmin) {

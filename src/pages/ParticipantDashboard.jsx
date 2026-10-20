@@ -90,6 +90,7 @@ export default function ParticipantDashboard() {
           if (regData) {
             const deletedList = JSON.parse(localStorage.getItem('inno_sprint_deleted_regs') || '[]');
             if (
+              regData.reference_code?.startsWith('SYS-') ||
               (regData.organizer_notes && regData.organizer_notes.includes('__DELETED__')) ||
               deletedList.includes(regData.id) ||
               deletedList.includes(regData.reference_code)

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
+import { fetchCloudAuthorizedAdmins } from '../lib/adminList';
 import {
   groupRegistrationsIntoTeamCertificateCards,
   fetchAllCertificatesMap,
@@ -122,10 +123,12 @@ export default function AdminDashboard() {
           regData = res.data || [];
         }
 
-        // Clean out any registrations marked as deleted or present in deleted cache
+        // Clean out any registrations marked as deleted, system configuration records, or present in deleted cache
         const deletedIds = JSON.parse(localStorage.getItem('inno_sprint_deleted_regs') || '[]');
         const cleanRegData = regData.filter(
           (r) =>
+            r.reference_code !== 'SYS-AUTH-ADMINS' &&
+            !r.reference_code?.startsWith('SYS-') &&
             (!r.organizer_notes || !r.organizer_notes.includes('__DELETED__')) &&
             !deletedIds.includes(r.id) &&
             !deletedIds.includes(r.reference_code)
@@ -195,46 +198,12 @@ export default function AdminDashboard() {
           .select('*, profiles(full_name, email)');
         setUserRolesList(rolesData || []);
 
-        // 4. Authorized Admins
+        // 4. Authorized Admins (fetch from live cloud registry synced across devices)
         try {
-          const { data: authAdminData } = await supabase
-            .from('authorized_admins')
-            .select('*')
-            .order('created_at', { ascending: false });
-
-          const localAdmins = JSON.parse(
-            localStorage.getItem('inno_sprint_authorized_admins') || '[]'
-          );
-          const fetchedOrLocal =
-            authAdminData && authAdminData.length > 0 ? authAdminData : localAdmins;
-
-          const merged = [...DEFAULT_ADMINS];
-          fetchedOrLocal.forEach((item) => {
-            if (
-              item?.email &&
-              !merged.some((m) => m.email.toLowerCase() === item.email.toLowerCase())
-            ) {
-              merged.push(item);
-            }
-          });
-
-          setAuthorizedAdminsList(merged);
-          localStorage.setItem('inno_sprint_authorized_admins', JSON.stringify(merged));
+          const cloudAdmins = await fetchCloudAuthorizedAdmins();
+          setAuthorizedAdminsList(cloudAdmins);
         } catch (authErr) {
           console.warn('[Admin authorized_admins notice]', authErr);
-          const localAdmins = JSON.parse(
-            localStorage.getItem('inno_sprint_authorized_admins') || '[]'
-          );
-          const merged = [...DEFAULT_ADMINS];
-          localAdmins.forEach((item) => {
-            if (
-              item?.email &&
-              !merged.some((m) => m.email.toLowerCase() === item.email.toLowerCase())
-            ) {
-              merged.push(item);
-            }
-          });
-          setAuthorizedAdminsList(merged);
         }
 
         // 5. Announcements
