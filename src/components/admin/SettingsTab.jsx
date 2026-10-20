@@ -18,7 +18,9 @@ import {
   Check,
   Activity,
   Layers,
-  Sparkles
+  Sparkles,
+  Copy,
+  ExternalLink
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
@@ -89,9 +91,60 @@ export default function SettingsTab({ onRefreshData }) {
       localStorage.removeItem('inno_sprint_registrations');
       localStorage.removeItem('inno_sprint_contact_messages');
       localStorage.removeItem('inno_sprint_announcements');
+      localStorage.removeItem('inno_sprint_deleted_regs');
       if (onRefreshData) onRefreshData();
       toast.success('Local cache purged. Live data refetched.');
     }
+  };
+
+  const handleCopySql = () => {
+    const sql = `-- INNO SPRINT: Allow Deletion in Supabase
+ALTER TABLE IF EXISTS public.registrations
+    DROP CONSTRAINT IF EXISTS registrations_team_id_fkey,
+    ADD CONSTRAINT registrations_team_id_fkey
+    FOREIGN KEY (team_id) REFERENCES public.teams(id) ON DELETE SET NULL;
+
+DROP POLICY IF EXISTS "Organizers can delete registration" ON public.registrations;
+DROP POLICY IF EXISTS "Allow delete registration" ON public.registrations;
+CREATE POLICY "Allow delete registration" ON public.registrations FOR DELETE USING (true);
+
+DROP POLICY IF EXISTS "Allow delete teams" ON public.teams;
+CREATE POLICY "Allow delete teams" ON public.teams FOR DELETE USING (true);
+
+DROP POLICY IF EXISTS "Allow delete team members" ON public.team_members;
+CREATE POLICY "Allow delete team members" ON public.team_members FOR DELETE USING (true);
+
+DROP POLICY IF EXISTS "Allow delete certificates" ON public.certificates;
+CREATE POLICY "Allow delete certificates" ON public.certificates FOR DELETE USING (true);
+
+CREATE OR REPLACE FUNCTION public.delete_registration_permanently(p_reg_id UUID DEFAULT NULL, p_ref_code TEXT DEFAULT NULL)
+RETURNS BOOLEAN LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_target_id UUID; v_team_id UUID;
+BEGIN
+    IF p_reg_id IS NOT NULL THEN
+        SELECT id, team_id INTO v_target_id, v_team_id FROM public.registrations WHERE id = p_reg_id LIMIT 1;
+    ELSIF p_ref_code IS NOT NULL THEN
+        SELECT id, team_id INTO v_target_id, v_team_id FROM public.registrations WHERE reference_code = UPPER(TRIM(p_ref_code)) LIMIT 1;
+    END IF;
+    IF v_target_id IS NULL THEN RETURN FALSE; END IF;
+    DELETE FROM public.certificates WHERE registration_id = v_target_id;
+    DELETE FROM public.project_submissions WHERE registration_id = v_target_id;
+    DELETE FROM public.registrations WHERE id = v_target_id;
+    IF v_team_id IS NOT NULL THEN
+        IF NOT EXISTS (SELECT 1 FROM public.registrations WHERE team_id = v_team_id) THEN
+            DELETE FROM public.team_members WHERE team_id = v_team_id;
+            DELETE FROM public.teams WHERE id = v_team_id;
+        END IF;
+    END IF;
+    RETURN TRUE;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.delete_registration_permanently(UUID, TEXT) TO anon, authenticated, service_role;
+
+DELETE FROM public.registrations WHERE organizer_notes LIKE '%__DELETED__%';`;
+
+    navigator.clipboard.writeText(sql);
+    toast.success('SQL migration script copied to clipboard!');
   };
 
   return (
@@ -304,7 +357,47 @@ export default function SettingsTab({ onRefreshData }) {
         </div>
       </div>
 
-      {/* 4. Cache & Maintenance Utilities */}
+      {/* 4. Supabase Database Maintenance & RLS Deletion Setup */}
+      <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-b from-[#0e1629]/95 to-[#070b14]/95 border border-cyan-500/20 backdrop-blur-xl shadow-xl space-y-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+              <h3 className="text-base font-bold text-white font-heading tracking-wide">
+                Database Permanent Deletion (Supabase RLS)
+              </h3>
+            </div>
+            <p className="text-xs text-slate-400 mt-1 max-w-2xl">
+              Deleted registrations are automatically hidden and marked in Supabase. To execute full database-level hard deletions (cascade delete teams, team members, submissions, and certificates), run this quick 1-minute SQL script in your Supabase SQL Editor.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={handleCopySql}
+              className="px-3.5 py-2 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-400/30 text-cyan-300 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm"
+              title="Copy SQL Migration script"
+            >
+              <Copy className="w-3.5 h-3.5" />
+              <span>Copy SQL Script</span>
+            </motion.button>
+
+            <a
+              href="https://supabase.com/dashboard/project/hbntxrrexilmjvxncwvc/sql/new"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-300 hover:to-blue-400 text-[#070b14] text-xs font-bold flex items-center gap-1.5 transition-all shadow-md shadow-cyan-500/20"
+            >
+              <span>Open Supabase SQL Editor</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          </div>
+        </div>
+      </div>
+
+      {/* 5. Cache & Maintenance Utilities */}
       <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-b from-[#0e1629]/90 to-[#070b14]/90 border border-white/10 backdrop-blur-xl shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h3 className="text-base font-bold text-white font-heading tracking-wide">

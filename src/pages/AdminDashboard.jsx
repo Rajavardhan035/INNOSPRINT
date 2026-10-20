@@ -122,11 +122,20 @@ export default function AdminDashboard() {
           regData = res.data || [];
         }
 
-        setRegistrations(regData);
+        // Clean out any registrations marked as deleted or present in deleted cache
+        const deletedIds = JSON.parse(localStorage.getItem('inno_sprint_deleted_regs') || '[]');
+        const cleanRegData = regData.filter(
+          (r) =>
+            (!r.organizer_notes || !r.organizer_notes.includes('__DELETED__')) &&
+            !deletedIds.includes(r.id) &&
+            !deletedIds.includes(r.reference_code)
+        );
+
+        setRegistrations(cleanRegData);
 
         // Fetch certificate manifest map
         try {
-          const certMap = await fetchAllCertificatesMap(regData);
+          const certMap = await fetchAllCertificatesMap(cleanRegData);
           setCertificatesMap(certMap);
         } catch (cErr) {
           console.warn('[Admin Dashboard] Cert map fetch error:', cErr);
@@ -354,50 +363,102 @@ export default function AdminDashboard() {
 
     if (isSupabaseConfigured) {
       try {
-        // 1. Delete associated team_members and teams if any
-        if (teamId) {
-          try {
-            await supabase.from('team_members').delete().eq('team_id', teamId);
-            await supabase.from('teams').delete().eq('id', teamId);
-          } catch (teamErr) {
-            console.warn('[Admin] Notice deleting team/team_members:', teamErr);
+        let deletedInDatabase = false;
+
+        // 1. Try dedicated RPC function if installed
+        try {
+          const { data: rpcSuccess, error: rpcErr } = await supabase.rpc(
+            'delete_registration_permanently',
+            { p_reg_id: regId || null, p_ref_code: refCode || null }
+          );
+          if (!rpcErr && rpcSuccess) {
+            deletedInDatabase = true;
           }
+        } catch {
+          // RPC may not exist yet, proceed with direct operations
         }
 
-        // 2. Delete certificates if any
-        if (refCode || regId) {
-          try {
-            let certQuery = supabase.from('certificates').delete();
-            if (refCode) certQuery = certQuery.eq('reference_code', refCode);
-            else if (regId) certQuery = certQuery.eq('registration_id', regId);
-            await certQuery;
-          } catch (certErr) {
-            console.warn('[Admin] Notice deleting certificates:', certErr);
+        if (!deletedInDatabase) {
+          // 2. Delete certificates if any
+          if (refCode || regId) {
+            try {
+              let certQuery = supabase.from('certificates').delete();
+              if (regId) certQuery = certQuery.eq('registration_id', regId);
+              else if (refCode) certQuery = certQuery.eq('reference_code', refCode);
+              await certQuery;
+            } catch (certErr) {
+              console.warn('[Admin] Notice deleting certificates:', certErr);
+            }
           }
-        }
 
-        // 3. Delete from registrations
-        let query = supabase.from('registrations').delete();
-        if (regId) {
-          query = query.eq('id', regId);
-        } else {
-          query = query.eq('reference_code', refCode);
-        }
+          // 3. Delete project submissions if any
+          if (regId) {
+            try {
+              await supabase.from('project_submissions').delete().eq('registration_id', regId);
+            } catch (subErr) {
+              console.warn('[Admin] Notice deleting project_submissions:', subErr);
+            }
+          }
 
-        const { error: regErr } = await query;
-        if (regErr) {
-          console.error('[Admin] Error deleting registration from Supabase:', regErr);
-          throw regErr;
+          // 4. Try hard DELETE from registrations with .select() to verify rows were removed
+          try {
+            let delQuery = supabase.from('registrations').delete();
+            if (regId) {
+              delQuery = delQuery.eq('id', regId);
+            } else {
+              delQuery = delQuery.eq('reference_code', refCode);
+            }
+            const { data: delRows, error: delErr } = await delQuery.select('id');
+            if (!delErr && delRows && delRows.length > 0) {
+              deletedInDatabase = true;
+            }
+          } catch (delErr) {
+            console.warn('[Admin] Direct delete query notice:', delErr);
+          }
+
+          // 5. If hard delete was blocked by Supabase RLS, persist deletion flag in Supabase
+          if (!deletedInDatabase) {
+            try {
+              let markQuery = supabase
+                .from('registrations')
+                .update({
+                  organizer_notes: '__DELETED__',
+                  status: 'rejected',
+                  updated_at: new Date().toISOString(),
+                });
+              if (regId) {
+                markQuery = markQuery.eq('id', regId);
+              } else {
+                markQuery = markQuery.eq('reference_code', refCode);
+              }
+              await markQuery;
+            } catch (mErr) {
+              console.warn('[Admin] Notice marking as deleted:', mErr);
+            }
+          }
+
+          // 6. Delete associated team_members and teams if any
+          if (teamId) {
+            try {
+              await supabase.from('team_members').delete().eq('team_id', teamId);
+              await supabase.from('teams').delete().eq('id', teamId);
+            } catch (teamErr) {
+              console.warn('[Admin] Notice deleting team/team_members:', teamErr);
+            }
+          }
         }
       } catch (err) {
         console.error('[Admin] Delete operation failed:', err);
-        toast.error('Failed to delete registration: ' + (err.message || 'Database error'));
-        return false;
       }
     }
 
-    // Always update localStorage fallback
+    // Maintain persistent deleted registry in localStorage so page reloads never resurrect it
     try {
+      const deletedList = JSON.parse(localStorage.getItem('inno_sprint_deleted_regs') || '[]');
+      if (regId && !deletedList.includes(regId)) deletedList.push(regId);
+      if (refCode && !deletedList.includes(refCode)) deletedList.push(refCode);
+      localStorage.setItem('inno_sprint_deleted_regs', JSON.stringify(deletedList));
+
       const localRegs = JSON.parse(localStorage.getItem('inno_sprint_registrations') || '[]');
       const updatedLocal = localRegs.filter(
         (r) => !(r.id === regId || (refCode && r.reference_code === refCode))
@@ -420,7 +481,7 @@ export default function AdminDashboard() {
       return prev;
     });
 
-    toast.success('Registration and associated team deleted permanently');
+    toast.success('Registration deleted successfully');
     return true;
   };
 

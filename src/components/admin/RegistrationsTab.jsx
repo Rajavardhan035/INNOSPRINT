@@ -725,7 +725,6 @@ export default function RegistrationsTab({
                     setIsDeleting(false);
                     if (ok) {
                       setRegToDelete(null);
-                      toast.success('Registration deleted successfully');
                     }
                   }}
                   className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold flex items-center space-x-1.5 shadow-lg shadow-rose-950/50 transition-all disabled:opacity-50"
