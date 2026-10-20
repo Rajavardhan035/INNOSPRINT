@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '../lib/auth';
+import { useAuth, isValidUuid } from '../lib/auth';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { sendEmailNotification } from '../lib/email';
 import { THEMES } from '../lib/constants';
@@ -266,6 +266,7 @@ export default function RegisterPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loading) return;
     if (!validateStep()) return;
 
     setLoading(true);
@@ -319,13 +320,55 @@ export default function RegisterPage() {
       let teamId = null;
 
       if (isSupabaseConfigured) {
-        // Create Team if team mode
+        // 1. Resolve strictly verified Supabase Auth user UUID
+        // Ensures non-UUID values (like "usr_rajavardhan445_gmail_com") are NEVER passed to PostgreSQL UUID columns
+        let verifiedAuthUserId = null;
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          const candidateId = (session?.user?.id && isValidUuid(session.user.id))
+            ? session.user.id
+            : (user?.id && isValidUuid(user.id) ? user.id : null);
+
+          if (candidateId) {
+            // Check if profile exists in public.profiles to satisfy foreign key constraint
+            const { data: profRow } = await supabase
+              .from('profiles')
+              .select('id')
+              .eq('id', candidateId)
+              .maybeSingle();
+
+            if (profRow?.id) {
+              verifiedAuthUserId = profRow.id;
+            } else {
+              // Upsert minimal profile to guarantee foreign key constraint succeeds
+              const { error: profUpsertErr } = await supabase
+                .from('profiles')
+                .upsert({
+                  id: candidateId,
+                  full_name: formData.fullName.trim() || 'Participant',
+                  email: formData.email.trim().toLowerCase(),
+                  mobile: formData.mobile.trim() || null,
+                  college: formData.college.trim() || null,
+                  degree_branch: formData.degreeBranch.trim() || null,
+                  year_of_study: formData.yearOfStudy || null,
+                });
+              if (!profUpsertErr) {
+                verifiedAuthUserId = candidateId;
+              }
+            }
+          }
+        } catch (authErr) {
+          console.warn('[Register] Auth session verification notice:', authErr);
+          verifiedAuthUserId = null;
+        }
+
+        // 2. Create Team if team mode
         if (formData.participationType === 'team') {
           const { data: teamData, error: teamErr } = await supabase
             .from('teams')
             .insert({
-              team_name: formData.teamName,
-              leader_id: user?.id || null,
+              team_name: formData.teamName.trim(),
+              leader_id: verifiedAuthUserId, // Valid UUID or null
               theme: formData.theme,
             })
             .select()
@@ -337,40 +380,54 @@ export default function RegisterPage() {
           // Insert team members
           const membersToInsert = formData.teamMembers.slice(0, formData.teamSize - 1).map((m, idx) => ({
             team_id: teamId,
-            member_name: m.name,
-            member_email: m.email,
-            member_phone: m.phone,
+            member_name: m.name.trim(),
+            member_email: m.email.trim().toLowerCase(),
+            member_phone: m.phone ? m.phone.trim() : null,
             role_in_team: `Member ${idx + 1}`
           }));
 
-          await supabase.from('team_members').insert(membersToInsert);
+          if (membersToInsert.length > 0) {
+            const { error: memErr } = await supabase.from('team_members').insert(membersToInsert);
+            if (memErr) {
+              // Rollback orphaned team
+              await supabase.from('teams').delete().eq('id', teamId).catch(() => {});
+              throw memErr;
+            }
+          }
         }
 
-        // Create Registration record in Supabase
+        // 3. Create Registration record in Supabase
         const { error: regErr } = await supabase
           .from('registrations')
           .insert({
             reference_code: refCode,
-            user_id: user?.id || null,
-            applicant_name: formData.fullName,
-            applicant_email: formData.email,
-            applicant_mobile: formData.mobile,
-            applicant_college: formData.college,
-            degree_branch: formData.degreeBranch,
+            user_id: verifiedAuthUserId, // Valid UUID or null
+            applicant_name: formData.fullName.trim(),
+            applicant_email: formData.email.trim().toLowerCase(),
+            applicant_mobile: formData.mobile.trim(),
+            applicant_college: formData.college.trim(),
+            degree_branch: formData.degreeBranch.trim(),
             year_of_study: formData.yearOfStudy,
             participation_type: formData.participationType,
             team_id: teamId,
             theme: formData.theme,
-            project_title: formData.projectTitle,
-            problem_statement: formData.problemStatement,
-            project_description: formData.projectDescription,
+            project_title: formData.projectTitle.trim(),
+            problem_statement: formData.problemStatement.trim(),
+            project_description: formData.projectDescription.trim(),
             proposal_url: proposalUrl,
             student_id_url: studentIdUrl,
             consent_accepted: true,
             status: 'pending'
           });
 
-        if (regErr) throw regErr;
+        if (regErr) {
+          // Rollback orphaned team and members on registration failure
+          if (teamId) {
+            await supabase.from('team_members').delete().eq('team_id', teamId).catch(() => {});
+            await supabase.from('teams').delete().eq('id', teamId).catch(() => {});
+          }
+          throw regErr;
+        }
       }
 
       // Always save locally so status check & refresh work reliably and immediately
@@ -966,6 +1023,13 @@ export default function RegisterPage() {
                   <span>I confirm that all provided participant details and team information are accurate.</span>
                 </label>
               </div>
+
+              {errorMessage && (
+                <div className="p-3.5 rounded-xl bg-red-950/90 border border-red-500/60 text-red-200 text-xs flex items-start space-x-2.5 animate-fadeIn">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0 text-red-400 mt-0.5" />
+                  <p className="font-semibold">{errorMessage}</p>
+                </div>
+              )}
             </div>
           )}
 

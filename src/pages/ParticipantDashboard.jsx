@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../lib/auth';
+import { useAuth, isValidUuid } from '../lib/auth';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { LayoutDashboard, User, Users, FileCode, Award, Save, LogOut, Download, Zap } from 'lucide-react';
 import { resolveVerifiedParticipantCertificate, downloadVerifiedParticipantCertificate } from '../lib/certificates';
@@ -195,10 +195,23 @@ export default function ParticipantDashboard() {
 
     try {
       if (isSupabaseConfigured && registration) {
+        let submissionUserId = isValidUuid(user?.id)
+          ? user.id
+          : (isValidUuid(registration.user_id) ? registration.user_id : null);
+
+        if (!submissionUserId) {
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.user?.id && isValidUuid(session.user.id)) {
+              submissionUserId = session.user.id;
+            }
+          } catch {}
+        }
+
         const payload = {
           registration_id: registration.id,
           team_id: registration.team_id || null,
-          user_id: user.id,
+          user_id: submissionUserId,
           title: projectTitle,
           summary: projectSummary,
           repo_url: repoUrl,

@@ -9,6 +9,15 @@ import {
 
 export { KNOWN_ADMINS, checkIsAdminEmail, checkIsAdminEmailAsync, fetchCloudAuthorizedAdmins };
 
+/**
+ * Validates whether a given string is a genuine RFC-4122 UUID
+ * to prevent PostgreSQL 22P02 "invalid input syntax for type uuid" errors.
+ */
+export const isValidUuid = (val) => {
+  if (!val || typeof val !== 'string') return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(val.trim());
+};
+
 const AuthContext = createContext({});
 
 export const useAuth = () => useContext(AuthContext);
@@ -242,10 +251,12 @@ export function AuthProvider({ children }) {
     const adminMeta = await checkIsAdminEmailAsync(cleanEmail);
 
     if (adminMeta) {
+      let authedUser = null;
       if (isSupabaseConfigured && password) {
         try {
           const { data: supaData } = await supabase.auth.signInWithPassword({ email: cleanEmail, password });
           if (supaData?.user) {
+            authedUser = supaData.user;
             await fetchUserProfileAndRole(supaData.user.id, supaData.user.email);
           }
         } catch {
@@ -253,10 +264,19 @@ export function AuthProvider({ children }) {
         }
       }
 
-      loginAsAdminByEmail(adminMeta.email, adminMeta.name, adminMeta.role);
+      if (!authedUser && isSupabaseConfigured) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user?.email?.toLowerCase() === cleanEmail) {
+            authedUser = session.user;
+          }
+        } catch {}
+      }
+
+      loginAsAdminByEmail(adminMeta.email, adminMeta.name, adminMeta.role, authedUser);
       return {
         data: {
-          user: {
+          user: authedUser && isValidUuid(authedUser.id) ? authedUser : {
             id: 'usr_' + adminMeta.email.replace(/[^a-zA-Z0-9]/g, '_'),
             email: adminMeta.email,
           },
@@ -344,7 +364,7 @@ export function AuthProvider({ children }) {
 
   const updateProfile = async (updates) => {
     if (!user) return;
-    if (isSupabaseConfigured) {
+    if (isSupabaseConfigured && isValidUuid(user.id)) {
       const { data, error } = await supabase
         .from('profiles')
         .update(updates)
@@ -361,8 +381,15 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const loginAsAdminByEmail = (adminEmail = 'rajavardhan445@gmail.com', adminName = 'Raja Vardhan (Main Admin)', adminRole = 'superadmin') => {
-    const adminUser = { id: 'usr_' + adminEmail.replace(/[^a-zA-Z0-9]/g, '_'), email: adminEmail };
+  const loginAsAdminByEmail = (
+    adminEmail = 'rajavardhan445@gmail.com',
+    adminName = 'Raja Vardhan (Main Admin)',
+    adminRole = 'superadmin',
+    realUser = null
+  ) => {
+    const adminUser = (realUser && realUser.id && isValidUuid(realUser.id))
+      ? realUser
+      : { id: 'usr_' + adminEmail.replace(/[^a-zA-Z0-9]/g, '_'), email: adminEmail };
     const adminProfile = { full_name: adminName, email: adminEmail };
     setUser(adminUser);
     setProfile(adminProfile);
