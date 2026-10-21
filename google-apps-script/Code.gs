@@ -326,3 +326,46 @@ function createJsonResponse(data, statusCode) {
   output.setMimeType(ContentService.MimeType.JSON);
   return output;
 }
+
+/**
+ * ============================================================================
+ * ONE-CLICK AUTHORIZATION & TELEMETRY TEST
+ * ============================================================================
+ * Run this function directly inside the Google Apps Script editor toolbar.
+ * It forces Google to prompt for MailApp permission ("Review permissions > Allow")
+ * and verifies that your Gmail account is authorized to send emails.
+ */
+function testEmailAuthorization() {
+  var remainingQuota = MailApp.getRemainingDailyQuota();
+  Logger.log('Current remaining daily email quota: ' + remainingQuota);
+
+  var scriptProperties = PropertiesService.getScriptProperties();
+  var configuredSecret = scriptProperties.getProperty('EMAIL_WEBHOOK_SECRET');
+  Logger.log('EMAIL_WEBHOOK_SECRET is currently ' + (configuredSecret ? 'SET (length: ' + configuredSecret.length + ')' : 'MISSING!'));
+
+  var testRecipient = Session.getActiveUser().getEmail() || 'rajavardhan445@gmail.com';
+  Logger.log('Sending test authorization email to: ' + testRecipient);
+
+  MailApp.sendEmail({
+    to: testRecipient,
+    subject: 'InnoSprint 2026 — Google Apps Script Authorization Test',
+    body: 'This is an automatic confirmation verifying that your Google Apps Script has been successfully authorized to dispatch InnoSprint 2026 emails via MailApp.',
+    name: 'InnoSprint 2026 Organizing Committee'
+  });
+
+  Logger.log('SUCCESS: MailApp is authorized and working! Test email dispatched to ' + testRecipient);
+}
+
+/**
+ * Convenience helper to set EMAIL_WEBHOOK_SECRET via script execution
+ * if you prefer not to use Project Settings manually.
+ */
+function setWebhookSecret(secretValue) {
+  if (!secretValue) {
+    Logger.log('Error: Pass a non-empty string secret.');
+    return;
+  }
+  PropertiesService.getScriptProperties().setProperty('EMAIL_WEBHOOK_SECRET', String(secretValue).trim());
+  Logger.log('SUCCESS: EMAIL_WEBHOOK_SECRET has been saved to Script Properties.');
+}
+

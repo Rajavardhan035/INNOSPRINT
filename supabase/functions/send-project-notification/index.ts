@@ -93,17 +93,16 @@ serve(async (req: Request) => {
     });
 
     // 3. Parse request payload
-    let body: RequestBody = {};
+    let body: any = {};
     try {
       body = await req.json();
     } catch {
       return jsonResponse(req, { success: false, error: "Malformed JSON payload." }, 400);
     }
-
     const targetId = (body.submissionId || body.registrationId || "").trim();
     const forceRetry = Boolean(body.forceRetry);
 
-    if (!targetId) {
+    if (!targetId && !body.probeGas) {
       return jsonResponse(
         req,
         { success: false, error: "Bad Request: Missing submissionId or registrationId parameter." },
@@ -206,7 +205,7 @@ serve(async (req: Request) => {
           // Also check by email if user_roles has email or user_id
           const { data: authUser } = await adminClient.auth.admin.listUsers();
           const matchedUser = authUser?.users?.find(
-            (u) => u.email?.toLowerCase().trim() === callerEmail
+            (u: any) => u.email?.toLowerCase().trim() === callerEmail
           );
 
           if (matchedUser) {
@@ -236,7 +235,41 @@ serve(async (req: Request) => {
       );
     }
 
-    // 5. Fetch authoritative project record from Supabase
+    // 5. Authorized Diagnostic Probe: Verify Google Apps Script endpoint connectivity
+    if (body.probeGas === true) {
+      const webhookUrl = Deno.env.get("EMAIL_WEBHOOK_URL");
+      const webhookSecret = Deno.env.get("EMAIL_WEBHOOK_SECRET");
+      if (!webhookUrl) {
+        return jsonResponse(req, { success: false, error: "EMAIL_WEBHOOK_URL is not configured in Supabase secrets." }, 503);
+      }
+
+      let getStatus = 0;
+      let getBody = "";
+      try {
+        const getRes = await fetch(webhookUrl, { method: "GET", redirect: "follow" });
+        getStatus = getRes.status;
+        getBody = await getRes.text();
+      } catch (e: any) {
+        getBody = "GET error: " + (e.message || String(e));
+      }
+
+      const titleMatch = getBody.match(/<title>([^<]+)<\/title>/i);
+      const pageTitle = titleMatch ? titleMatch[1].trim() : "No <title>";
+
+      return jsonResponse(req, {
+        success: true,
+        probe: "probeGas",
+        webhookConfigured: Boolean(webhookUrl),
+        secretConfigured: Boolean(webhookSecret),
+        urlEndsWithExec: webhookUrl.endsWith("/exec"),
+        getStatus,
+        pageTitle,
+        getBodySnippet: getBody.slice(0, 300),
+        isHtml: getBody.includes("<html") || getBody.includes("<!DOCTYPE"),
+      });
+    }
+
+    // 6. Fetch authoritative project record from Supabase
     let registrationRecord: any = null;
     let projectSubmissionRecord: any = null;
 
@@ -567,14 +600,30 @@ serve(async (req: Request) => {
     try {
       responseData = JSON.parse(responseText);
     } catch {
-      console.error("[send-project-notification] GAS returned non-JSON response:", responseText);
+      console.error("[send-project-notification] GAS returned non-JSON response:", responseText.slice(0, 300));
       const snippet = responseText.slice(0, 150).replace(/\s+/g, ' ');
-      const isLoginHtml = snippet.includes("<!DOCTYPE html>") || snippet.includes("<html");
-      const gasDiag = isLoginHtml
-        ? "Google Apps Script returned a Google login HTML page instead of executing. In Google Apps Script Deployment settings: 1) Set 'Who has access' to 'Anyone' (not 'Only myself'), 2) Ensure the webhook URL ends in '/exec' (not '/dev'), and 3) Click 'Run' on doGet once in Apps Script to authorize permissions."
-        : `Google Apps Script returned an invalid response (HTTP ${gasResponse.status}): ${snippet}`;
+      const titleMatch = responseText.match(/<title>([^<]+)<\/title>/i);
+      const pageTitle = titleMatch ? titleMatch[1].trim() : "";
+      const isNotFound = gasResponse.status === 404 || pageTitle.toLowerCase().includes("not found");
+      const isLoginHtml = pageTitle.toLowerCase().includes("sign in") || pageTitle.toLowerCase().includes("login") || snippet.includes("<!DOCTYPE html>") || snippet.includes("<html");
 
-      const nonJsonErr = `${gasDiag} (Endpoint target: ${urlInfo})`;
+      let gasDiag = "";
+      let failureStage = "GAS_RESPONSE_PARSING";
+
+      if (isNotFound) {
+        failureStage = "GAS_ENDPOINT_404_NOT_FOUND";
+        gasDiag = "Google Apps Script Web App returned HTTP 404 'Page not found'. The deployment URL configured in EMAIL_WEBHOOK_URL does not exist, was deleted, or contains an invalid deployment ID. In Google Apps Script, click Deploy > Manage deployments, copy the active Web App URL (ending in /exec), and update EMAIL_WEBHOOK_URL in Supabase secrets.";
+      } else if (isLoginHtml) {
+        failureStage = "GAS_AUTH_ACCESS_DENIED";
+        gasDiag = "Google Apps Script returned an authentication or permission page. In Google Apps Script Deployment settings: 1) Ensure 'Who has access' is set to 'Anyone' (not 'Only myself'), 2) Ensure the webhook URL ends in '/exec' (not '/dev'), and 3) Click 'Run' on doGet once in Apps Script to authorize permissions.";
+      } else {
+        failureStage = "GAS_INVALID_NON_JSON_RESPONSE";
+        gasDiag = `Google Apps Script returned an invalid response (HTTP ${gasResponse.status}): ${snippet}`;
+      }
+
+      console.error(`[send-project-notification] [${failureStage}] ${gasDiag} (Endpoint target: ${urlInfo})`);
+
+      const nonJsonErr = `${gasDiag} (Endpoint: ${urlInfo})`;
 
       if (hasNotificationTable && notificationRowId) {
         await adminClient
@@ -593,6 +642,7 @@ serve(async (req: Request) => {
           success: false,
           delivered: false,
           canRetry: true,
+          stage: failureStage,
           error: nonJsonErr,
         },
         502
