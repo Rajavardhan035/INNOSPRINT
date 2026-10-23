@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, isValidUuid } from '../lib/auth';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import { LayoutDashboard, User, Users, FileCode, Award, Save, LogOut, Download, Zap } from 'lucide-react';
+import { LayoutDashboard, User, Users, FileCode, Award, Save, LogOut, Download, Zap, Bell, CheckCircle2, Clock, Sliders, ExternalLink, ShieldCheck } from 'lucide-react';
 import { resolveVerifiedParticipantCertificate, downloadVerifiedParticipantCertificate } from '../lib/certificates';
 
 export default function ParticipantDashboard() {
@@ -16,8 +16,20 @@ export default function ParticipantDashboard() {
 
   const [registration, setRegistration] = useState(null);
   const [submission, setSubmission] = useState(null);
+  const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [profileMessage, setProfileMessage] = useState('');
+
+  // Notification Preferences State (saved locally per participant)
+  const [notifPrefs, setNotifPrefs] = useState(() => {
+    try {
+      const stored = localStorage.getItem(`inno_sprint_prefs_${user?.email || 'default'}`);
+      return stored ? JSON.parse(stored) : { scheduleReminders: true, workshopAlerts: true };
+    } catch {
+      return { scheduleReminders: true, workshopAlerts: true };
+    }
+  });
+  const [prefSaveMsg, setPrefSaveMsg] = useState('');
 
   // Editable Profile state
   const [fullName, setFullName] = useState(profile?.full_name || '');
@@ -124,6 +136,18 @@ export default function ParticipantDashboard() {
               setProjectSummary(regData.project_description || '');
             }
           }
+
+          // 3. Fetch recent official announcements
+          try {
+            const { data: annData } = await supabase
+              .from('announcements')
+              .select('*')
+              .order('created_at', { ascending: false })
+              .limit(3);
+            if (annData && Array.isArray(annData)) {
+              setAnnouncements(annData);
+            }
+          } catch {}
         } catch (err) {
           console.error('[Dashboard Load Error]', err);
         }
@@ -155,6 +179,16 @@ export default function ParticipantDashboard() {
 
     loadDashboardData();
   }, [user]);
+
+  const handleTogglePref = (key) => {
+    const updated = { ...notifPrefs, [key]: !notifPrefs[key] };
+    setNotifPrefs(updated);
+    try {
+      localStorage.setItem(`inno_sprint_prefs_${user?.email || 'default'}`, JSON.stringify(updated));
+      setPrefSaveMsg('Notification preferences updated.');
+      setTimeout(() => setPrefSaveMsg(''), 2500);
+    } catch {}
+  };
 
   const handleDownloadDashboardCertificate = async () => {
     if (!registration || !user?.email) return;
@@ -293,6 +327,64 @@ export default function ParticipantDashboard() {
         </div>
       </section>
 
+      {/* IN-SITE NOTIFICATION BANNER */}
+      {registration && (
+        <section className="max-w-7xl mx-auto px-4 mb-6">
+          {registration.status === 'approved' ? (
+            <div className="p-6 rounded-3xl bg-gradient-to-r from-emerald-950/80 via-gray-900 to-cyan-950/80 border border-emerald-500/50 shadow-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="flex items-start space-x-4">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center shrink-0 mt-0.5 shadow-lg shadow-emerald-500/10">
+                  <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+                </div>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 text-[10px] font-extrabold uppercase font-['Orbitron']">
+                      Official Shortlist Notice
+                    </span>
+                    <span className="text-xs text-amber-400 font-mono font-bold">Ref: {registration.reference_code}</span>
+                  </div>
+                  <h2 className="text-xl font-bold text-white font-['Orbitron'] mt-1">
+                    Your Innovation Project Has Been Shortlisted!
+                  </h2>
+                  <p className="text-xs text-gray-300 mt-1 max-w-2xl leading-relaxed">
+                    Congratulations! Your team <strong className="text-white">{registration.teams?.team_name || registration.applicant_name}</strong> is selected for the next stage of INNOSPRINT 2026. Please report on <strong>October 26, 2026 at 09:00 AM IST</strong> at the VVIT University Campus, Guntur.
+                  </p>
+                </div>
+              </div>
+              <a
+                href={`/register/status?ref=${encodeURIComponent(registration.reference_code)}`}
+                target="_blank"
+                rel="noreferrer"
+                className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-xs uppercase font-['Orbitron'] tracking-wider shrink-0 transition-all shadow-lg shadow-emerald-500/20 flex items-center space-x-2"
+              >
+                <span>Live Dossier</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            </div>
+          ) : registration.status === 'pending' ? (
+            <div className="p-5 rounded-2xl bg-gray-900/90 border border-cyan-500/30 flex items-center justify-between gap-4">
+              <div className="flex items-center space-x-3">
+                <Clock className="w-5 h-5 text-cyan-400 animate-spin" style={{ animationDuration: '6s' }} />
+                <div>
+                  <span className="text-xs font-bold uppercase font-['Orbitron'] text-cyan-300">
+                    Application Under Technical Review
+                  </span>
+                  <p className="text-[11px] text-gray-400">
+                    Your registration ({registration.reference_code}) is actively queued with our jury. Decisions will reflect here automatically.
+                  </p>
+                </div>
+              </div>
+              <a
+                href={`/register/status?ref=${encodeURIComponent(registration.reference_code)}`}
+                className="text-xs text-cyan-400 hover:underline shrink-0 font-mono"
+              >
+                Track Status &rarr;
+              </a>
+            </div>
+          ) : null}
+        </section>
+      )}
+
       {/* DASHBOARD GRID */}
       <section className="max-w-7xl mx-auto px-4 grid grid-cols-1 lg:grid-cols-3 gap-8">
         
@@ -399,6 +491,139 @@ export default function ParticipantDashboard() {
                 </p>
               </>
             )}
+          </div>
+
+          {/* NOTIFICATION HISTORY & ANNOUNCEMENTS CARD */}
+          <div className="p-6 rounded-2xl bg-gray-900/80 border border-gray-800 space-y-4">
+            <h2 className="text-lg font-extrabold uppercase text-cyan-300 font-['Orbitron'] border-b border-gray-800 pb-3 flex items-center justify-between">
+              <span className="flex items-center space-x-2">
+                <Bell className="w-5 h-5 text-cyan-400" />
+                <span>Notice History</span>
+              </span>
+              <span className="px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-300 text-[10px] font-bold font-mono">
+                LIVE
+              </span>
+            </h2>
+
+            <div className="space-y-3">
+              {/* Event 1: Shortlist Event */}
+              {registration && (
+                <div className="p-3 rounded-xl bg-gray-950 border border-gray-800 text-xs space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-white font-['Orbitron'] text-[11px] flex items-center space-x-1.5">
+                      <span className={`w-2 h-2 rounded-full ${registration.status === 'approved' ? 'bg-emerald-400' : 'bg-cyan-400 animate-pulse'}`} />
+                      <span>{registration.status === 'approved' ? 'Shortlist Notification' : 'Application Review'}</span>
+                    </span>
+                    <span className="text-[10px] text-gray-400 font-mono">
+                      {registration.status === 'approved' ? 'Approved' : 'Pending'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-gray-300">
+                    {registration.status === 'approved'
+                      ? 'Official shortlist status confirmed. Team invited to reporting desk on October 26, 2026.'
+                      : 'Your registration is queued in the review pipeline.'}
+                  </p>
+                </div>
+              )}
+
+              {/* Event 2: Registration Submission */}
+              {registration && (
+                <div className="p-3 rounded-xl bg-gray-950 border border-gray-800 text-xs space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-white font-['Orbitron'] text-[11px] flex items-center space-x-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>Registration Confirmed</span>
+                    </span>
+                    <span className="text-[10px] text-gray-400 font-mono">
+                      {registration.created_at ? new Date(registration.created_at).toLocaleDateString() : 'Received'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-gray-300">
+                    Registration received under reference code <strong className="text-amber-400 font-mono">{registration.reference_code}</strong>.
+                  </p>
+                </div>
+              )}
+
+              {/* Broadcast Announcements */}
+              {announcements && announcements.length > 0 && (
+                <div className="pt-2 border-t border-gray-800/80 space-y-2">
+                  <span className="text-[10px] font-bold uppercase text-gray-400 font-['Orbitron'] tracking-wider block">
+                    Official Broadcasts
+                  </span>
+                  {announcements.map((ann, idx) => (
+                    <div key={idx} className="p-2.5 rounded-lg bg-black/40 border border-gray-800 text-xs">
+                      <div className="flex items-center justify-between">
+                        <strong className="text-cyan-300 text-[11px] font-['Orbitron'] truncate">{ann.title}</strong>
+                        <span className="text-[9px] text-gray-400 font-mono shrink-0 ml-2">
+                          {ann.created_at ? new Date(ann.created_at).toLocaleDateString() : ''}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-gray-400 mt-0.5 line-clamp-2">{ann.content}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* NOTIFICATION PREFERENCES CARD */}
+          <div className="p-6 rounded-2xl bg-gray-900/80 border border-gray-800 space-y-4">
+            <h2 className="text-lg font-extrabold uppercase text-gray-200 font-['Orbitron'] border-b border-gray-800 pb-3 flex items-center space-x-2">
+              <Sliders className="w-5 h-5 text-cyan-400" />
+              <span>Notification Preferences</span>
+            </h2>
+
+            {prefSaveMsg && (
+              <div className="p-2.5 rounded-xl bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 text-[11px] font-bold text-center">
+                {prefSaveMsg}
+              </div>
+            )}
+
+            <div className="space-y-3 text-xs">
+              {/* Mandatory Transactional Status */}
+              <div className="p-3 rounded-xl bg-gray-950 border border-gray-800 flex items-center justify-between">
+                <div>
+                  <div className="flex items-center space-x-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                    <strong className="text-white">Shortlist & Result Notices</strong>
+                  </div>
+                  <span className="text-[10px] text-gray-400 block mt-0.5">Mandatory transactional emails</span>
+                </div>
+                <span className="text-[10px] font-bold text-emerald-400 font-mono uppercase bg-emerald-950 px-2 py-0.5 rounded border border-emerald-500/30">
+                  Always Active
+                </span>
+              </div>
+
+              {/* Schedule Reminders Toggle */}
+              <div className="p-3 rounded-xl bg-gray-950 border border-gray-800 flex items-center justify-between">
+                <div>
+                  <strong className="text-white">Milestone Reminders</strong>
+                  <span className="text-[10px] text-gray-400 block mt-0.5">Check-in, schedule, and deadline updates</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleTogglePref('scheduleReminders')}
+                  className={`w-11 h-6 rounded-full transition-colors relative p-0.5 ${notifPrefs.scheduleReminders ? 'bg-cyan-500' : 'bg-gray-700'}`}
+                >
+                  <div className={`w-5 h-5 rounded-full bg-white shadow-md transition-transform ${notifPrefs.scheduleReminders ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
+              </div>
+
+              {/* Workshop Alerts Toggle */}
+              <div className="p-3 rounded-xl bg-gray-950 border border-gray-800 flex items-center justify-between">
+                <div>
+                  <strong className="text-white">Workshop & Mentorship</strong>
+                  <span className="text-[10px] text-gray-400 block mt-0.5">Speaker sessions & technical AMAs</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleTogglePref('workshopAlerts')}
+                  className={`w-11 h-6 rounded-full transition-colors relative p-0.5 ${notifPrefs.workshopAlerts ? 'bg-cyan-500' : 'bg-gray-700'}`}
+                >
+                  <div className={`w-5 h-5 rounded-full bg-white shadow-md transition-transform ${notifPrefs.workshopAlerts ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 

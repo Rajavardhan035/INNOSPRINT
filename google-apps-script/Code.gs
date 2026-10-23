@@ -91,12 +91,12 @@ function doPost(e) {
       }, 401);
     }
 
-    // 4. Validate notification type (strictly accept only 'shortlisted')
-    var notificationType = String(payload.notificationType || '').trim().toLowerCase();
-    if (notificationType !== CONFIG.NOTIFICATION_TYPE) {
+    // 4. Validate notification type (accept 'shortlisted' or 'approved')
+    var notificationType = String(payload.notificationType || 'shortlisted').trim().toLowerCase();
+    if (notificationType !== 'shortlisted' && notificationType !== 'approved') {
       return createJsonResponse({
         success: false,
-        error: "Invalid Request: Only notificationType '" + CONFIG.NOTIFICATION_TYPE + "' is supported by this endpoint."
+        error: "Invalid Request: Only notificationType 'shortlisted' or 'approved' is supported by this endpoint."
       }, 400);
     }
 
@@ -126,21 +126,26 @@ function doPost(e) {
     var referenceCode = String(payload.referenceCode || '').trim();
     var trackTheme = String(payload.theme || '').trim();
 
-    // 8. Generate Subject, Plain Text, and HTML template
-    var subject = 'Congratulations! Your Team Has Been Shortlisted — InnoSprint 2026';
-    var plainTextBody = generatePlainText(teamName, projectTitle, referenceCode);
-    var htmlBody = generateHtmlEmail(teamName, projectTitle, referenceCode, trackTheme);
+    // 8. Generate Subject, Plain Text, and High-Deliverability HTML template
+    var isApproval = notificationType === 'approved';
+    var subject = isApproval
+      ? 'INNOSPRINT 2026: Your Registration Has Been Approved'
+      : 'INNOSPRINT 2026: Shortlist Notification';
 
-    // 9. Dispatch email via MailApp
+    var plainTextBody = generatePlainText(teamName, projectTitle, referenceCode, notificationType, trackTheme);
+    var htmlBody = generateHtmlEmail(teamName, projectTitle, referenceCode, trackTheme, notificationType);
+
+    // 9. Dispatch email via MailApp with proper reply-to and recognizable sender identity
     MailApp.sendEmail({
       to: rawRecipient,
       subject: subject,
       body: plainTextBody,
       htmlBody: htmlBody,
-      name: 'InnoSprint 2026 Organizing Committee'
+      name: 'INNOSPRINT 2026 Organizing Committee',
+      replyTo: CONFIG.SUPPORT_EMAIL
     });
 
-    console.info('[InnoSprint Email Sender] Shortlist notification successfully sent to: ' + rawRecipient + ' (Team: ' + teamName + ')');
+    console.info('[InnoSprint Email Sender] Official notification sent to: ' + rawRecipient + ' (Team: ' + teamName + ', Type: ' + notificationType + ')');
 
     // 10. Return success response with updated quota
     return createJsonResponse({
@@ -149,7 +154,8 @@ function doPost(e) {
       recipient: rawRecipient,
       teamName: teamName,
       projectTitle: projectTitle,
-      notificationType: CONFIG.NOTIFICATION_TYPE,
+      notificationType: notificationType,
+      subject: subject,
       quotaRemaining: MailApp.getRemainingDailyQuota(),
       timestamp: new Date().toISOString()
     }, 200);
@@ -199,121 +205,177 @@ function escapeHtml(str) {
 }
 
 /**
- * Generates plain-text alternative matching the exact requested prompt template
+ * Generates clean, RFC-compliant plain text matching the HTML message content
  */
-function generatePlainText(teamName, projectTitle, referenceCode) {
+function generatePlainText(teamName, projectTitle, referenceCode, notificationType, trackTheme) {
+  var isApproval = notificationType === 'approved';
+  var statusPhrase = isApproval
+    ? 'your registration has been approved'
+    : 'your project has been shortlisted for the next stage';
+
+  var portalUrl = CONFIG.STATUS_PORTAL_URL + (referenceCode ? '?ref=' + encodeURIComponent(referenceCode) : '');
+
   return [
     'Dear ' + teamName + ',',
     '',
-    'Congratulations! Your project, ' + projectTitle + ', has been shortlisted for the next stage of InnoSprint 2026.',
+    'We are writing to confirm that ' + statusPhrase + ' of INNOSPRINT 2026.',
     '',
+    'REGISTRATION AND EVENT DETAILS',
+    '------------------------------------------------------------',
+    'Event: INNOSPRINT 2026 National Hackathon',
+    'Status: ' + (isApproval ? 'Approved' : 'Shortlisted'),
+    'Project Title: ' + projectTitle,
     (referenceCode ? 'Reference Code: ' + referenceCode + '\n' : '') +
-    'Please check the official hackathon website and your registered email for further instructions and important event updates.',
-    '',
-    'Official Website: ' + CONFIG.WEBSITE_URL,
-    'Status Verification: ' + CONFIG.STATUS_PORTAL_URL,
-    '',
+    (trackTheme ? 'Innovation Track: ' + trackTheme + '\n' : '') +
     'Event Dates: ' + CONFIG.EVENT_DATES,
     'Venue: ' + CONFIG.EVENT_VENUE,
+    '------------------------------------------------------------',
+    '',
+    'NEXT STEPS FOR YOUR TEAM:',
+    '1. Review and verify your registration dossier, team roster, and checklist on the official status portal:',
+    '   ' + portalUrl,
+    '2. Plan your travel to arrive at the venue on October 26, 2026 at 09:00 AM IST.',
+    '3. Ensure all team members carry valid college/institution identity cards.',
+    '',
+    'If you have any questions or require official participation documentation, please reply directly to this email or contact our organizing desk at ' + CONFIG.SUPPORT_EMAIL + '.',
     '',
     'Best regards,',
-    '',
-    'InnoSprint 2026 Organizing Committee'
+    'INNOSPRINT 2026 Organizing Committee',
+    'Vasireddy Venkatadri Institute of Technology (VVIT)',
+    'Nambur, Guntur, Andhra Pradesh – 522508, India',
+    'Official Portal: ' + CONFIG.WEBSITE_URL
   ].join('\n');
 }
 
 /**
- * Generates modern, responsive, cyber-themed InnoSprint HTML email
+ * Generates clean, professional, deliverability-optimized HTML email
+ * Built with bulletproof table layout, high-contrast readable styling,
+ * legitimate institutional identification, and zero spam triggers.
  */
-function generateHtmlEmail(teamName, projectTitle, referenceCode, trackTheme) {
+function generateHtmlEmail(teamName, projectTitle, referenceCode, trackTheme, notificationType) {
   var safeTeam = escapeHtml(teamName);
   var safeTitle = escapeHtml(projectTitle);
   var safeRef = escapeHtml(referenceCode);
   var safeTrack = escapeHtml(trackTheme);
+  var isApproval = notificationType === 'approved';
+  var statusBadgeText = isApproval ? 'REGISTRATION APPROVED' : 'PROJECT SHORTLISTED';
+  var statusPhrase = isApproval
+    ? 'your registration has been approved'
+    : 'your project has been shortlisted for the next stage';
 
-  return '<!DOCTYPE html>' +
-  '<html lang="en">' +
+  var portalUrl = CONFIG.STATUS_PORTAL_URL + (safeRef ? '?ref=' + encodeURIComponent(safeRef) : '');
+
+  return '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">' +
+  '<html xmlns="http://www.w3.org/1999/xhtml" lang="en">' +
   '<head>' +
-    '<meta charset="UTF-8">' +
-    '<meta name="viewport" content="width=device-width, initial-scale=1.0">' +
-    '<title>InnoSprint 2026 Shortlist Notification</title>' +
-    '<style>' +
-      'body { margin: 0; padding: 0; background-color: #030712; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #f3f4f6; }' +
-      '.container { max-width: 600px; margin: 0 auto; background-color: #0a101f; border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 16px; overflow: hidden; margin-top: 24px; margin-bottom: 24px; }' +
-      '.header-bar { height: 4px; background: linear-gradient(90deg, #22d3ee 0%, #3b82f6 50%, #f59e0b 100%); }' +
-      '.hero-header { padding: 32px 32px 20px 32px; text-align: center; background: radial-gradient(circle at 50% 0%, rgba(34, 211, 238, 0.15), transparent 70%); }' +
-      '.brand-badge { display: inline-block; font-family: monospace; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 2px; color: #38bdf8; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); padding: 4px 12px; border-radius: 9999px; margin-bottom: 12px; }' +
-      '.main-title { font-size: 26px; font-weight: 900; letter-spacing: 1px; color: #ffffff; margin: 0 0 6px 0; text-transform: uppercase; }' +
-      '.subtitle { font-size: 13px; color: #94a3b8; margin: 0; }' +
-      '.status-pill { display: inline-block; margin: 16px 0 0 0; background-color: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.4); color: #34d399; font-size: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 1.5px; padding: 6px 16px; border-radius: 9999px; }' +
-      '.content-body { padding: 24px 32px 32px 32px; line-height: 1.6; }' +
-      '.greeting { font-size: 16px; font-weight: bold; color: #f8fafc; margin-bottom: 16px; }' +
-      '.lead-text { font-size: 15px; color: #e2e8f0; margin-bottom: 20px; }' +
-      '.project-card { background-color: #070c18; border: 1px solid rgba(255, 255, 255, 0.1); border-left: 4px solid #22d3ee; border-radius: 12px; padding: 18px 20px; margin: 24px 0; }' +
-      '.card-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; font-family: monospace; color: #38bdf8; margin-bottom: 4px; font-weight: bold; }' +
-      '.card-value { font-size: 16px; font-weight: bold; color: #ffffff; margin: 0 0 10px 0; }' +
-      '.meta-row { display: table; width: 100%; border-top: 1px solid rgba(255, 255, 255, 0.06); padding-top: 10px; margin-top: 6px; }' +
-      '.meta-col { display: table-cell; font-size: 12px; color: #94a3b8; font-family: monospace; }' +
-      '.meta-col strong { color: #f1f5f9; }' +
-      '.instructions-box { background-color: rgba(30, 41, 59, 0.6); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 12px; padding: 16px 20px; margin: 24px 0; font-size: 13px; color: #cbd5e1; }' +
-      '.instructions-title { color: #f59e0b; font-weight: bold; margin-bottom: 6px; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; }' +
-      '.cta-container { text-align: center; margin: 30px 0 20px 0; }' +
-      '.cta-button { display: inline-block; background: linear-gradient(135deg, #22d3ee 0%, #3b82f6 100%); color: #040711 !important; text-decoration: none; font-weight: 800; font-size: 13px; text-transform: uppercase; letter-spacing: 1.5px; padding: 13px 28px; border-radius: 10px; box-shadow: 0 4px 20px rgba(34, 211, 238, 0.35); }' +
-      '.closing-block { margin-top: 32px; padding-top: 20px; border-top: 1px solid rgba(255, 255, 255, 0.08); font-size: 13px; color: #94a3b8; }' +
-      '.closing-block strong { color: #e2e8f0; display: block; margin-top: 4px; }' +
-      '.footer { padding: 24px 32px; background-color: #050811; border-top: 1px solid rgba(255, 255, 255, 0.06); text-align: center; font-size: 11px; color: #64748b; line-height: 1.5; }' +
-      '.footer-link { color: #38bdf8; text-decoration: none; }' +
+    '<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1.0" />' +
+    '<title>INNOSPRINT 2026 Notification</title>' +
+    '<style type="text/css">' +
+      'body { margin: 0; padding: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; -webkit-font-smoothing: antialiased; }' +
+      'table { border-collapse: collapse; }' +
+      'td { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; }' +
+      '.btn-primary:hover { background-color: #0369a1 !important; }' +
     '</style>' +
   '</head>' +
-  '<body>' +
-    '<div class="container">' +
-      '<div class="header-bar"></div>' +
-      
-      '<div class="hero-header">' +
-        '<div class="brand-badge">NATIONAL HACKATHON 2026</div>' +
-        '<h1 class="main-title">INNOSPRINT 2026</h1>' +
-        '<p class="subtitle">VVIT University • ' + CONFIG.EVENT_DATES + '</p>' +
-        '<div><span class="status-pill">★ PROJECT SHORTLISTED ★</span></div>' +
-      '</div>' +
+  '<body style="margin: 0; padding: 0; background-color: #f1f5f9;">' +
+    '<table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f1f5f9; padding: 24px 0;">' +
+      '<tr>' +
+        '<td align="center">' +
+          '<table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">' +
+            
+            '<!-- Institutional Header -->' +
+            '<tr>' +
+              '<td style="background-color: #0f172a; padding: 28px 32px; border-bottom: 3px solid #0284c7; text-align: left;">' +
+                '<div style="color: #38bdf8; font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 4px;">National Hackathon 2026</div>' +
+                '<h1 style="color: #ffffff; font-size: 24px; font-weight: 800; margin: 0; letter-spacing: 0.5px;">INNOSPRINT 2026</h1>' +
+                '<p style="color: #94a3b8; font-size: 13px; margin: 6px 0 0 0;">VVIT University • ' + CONFIG.EVENT_DATES + '</p>' +
+              '</td>' +
+            '</tr>' +
 
-      '<div class="content-body">' +
-        '<p class="greeting">Dear ' + safeTeam + ',</p>' +
-        
-        '<p class="lead-text">' +
-          'Congratulations! Your project, <strong style="color: #22d3ee;">' + safeTitle + '</strong>, has been shortlisted for the next stage of <strong>InnoSprint 2026</strong>.' +
-        '</p>' +
+            '<!-- Status Pill Banner -->' +
+            '<tr>' +
+              '<td style="padding: 20px 32px 0 32px;">' +
+                '<span style="display: inline-block; background-color: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; font-size: 11px; font-weight: 700; letter-spacing: 1px; padding: 6px 14px; border-radius: 4px; text-transform: uppercase;">' +
+                  '&#10003; ' + statusBadgeText +
+                '</span>' +
+              '</td>' +
+            '</tr>' +
 
-        '<div class="project-card">' +
-          '<div class="card-label">Shortlisted Innovation Project</div>' +
-          '<div class="card-value">' + safeTitle + '</div>' +
-          '<div class="meta-row">' +
-            (safeRef ? '<div class="meta-col">REF: <strong>' + safeRef + '</strong></div>' : '') +
-            (safeTrack ? '<div class="meta-col" style="text-align: right;">TRACK: <strong>' + safeTrack + '</strong></div>' : '') +
-          '</div>' +
-        '</div>' +
+            '<!-- Main Content -->' +
+            '<tr>' +
+              '<td style="padding: 20px 32px 28px 32px; color: #1e293b; font-size: 15px; line-height: 1.6;">' +
+                '<p style="margin: 0 0 16px 0; font-size: 16px; font-weight: 600; color: #0f172a;">Dear ' + safeTeam + ',</p>' +
+                '<p style="margin: 0 0 20px 0; color: #334155;">' +
+                  'We are pleased to inform you that <strong>' + statusPhrase + '</strong> of <strong>INNOSPRINT 2026</strong>.' +
+                '</p>' +
 
-        '<div class="instructions-box">' +
-          '<div class="instructions-title">Important Next Steps</div>' +
-          '<p style="margin: 0 0 8px 0;">Please check the official hackathon website and your registered email for further instructions, sprint milestone checklists, and reporting times.</p>' +
-          '<p style="margin: 0; font-size: 12px; color: #94a3b8;"><strong>Reporting Venue:</strong> ' + CONFIG.EVENT_VENUE + '<br><strong>Reporting Date:</strong> October 26, 2026 at 09:00 AM IST</p>' +
-        '</div>' +
+                '<!-- Details Box -->' +
+                '<table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; margin: 20px 0; font-size: 13px;">' +
+                  '<tr>' +
+                    '<td style="padding: 14px 18px; border-bottom: 1px solid #e2e8f0; width: 35%; color: #64748b; font-weight: 600;">Project Title</td>' +
+                    '<td style="padding: 14px 18px; border-bottom: 1px solid #e2e8f0; color: #0f172a; font-weight: 600;">' + safeTitle + '</td>' +
+                  '</tr>' +
+                  (safeRef ? (
+                    '<tr>' +
+                      '<td style="padding: 12px 18px; border-bottom: 1px solid #e2e8f0; color: #64748b; font-weight: 600;">Reference Code</td>' +
+                      '<td style="padding: 12px 18px; border-bottom: 1px solid #e2e8f0; color: #0284c7; font-family: monospace; font-weight: 700;">' + safeRef + '</td>' +
+                    '</tr>'
+                  ) : '') +
+                  (safeTrack ? (
+                    '<tr>' +
+                      '<td style="padding: 12px 18px; border-bottom: 1px solid #e2e8f0; color: #64748b; font-weight: 600;">Innovation Track</td>' +
+                      '<td style="padding: 12px 18px; border-bottom: 1px solid #e2e8f0; color: #334155;">' + safeTrack + '</td>' +
+                    '</tr>'
+                  ) : '') +
+                  '<tr>' +
+                    '<td style="padding: 12px 18px; border-bottom: 1px solid #e2e8f0; color: #64748b; font-weight: 600;">Event Dates</td>' +
+                    '<td style="padding: 12px 18px; border-bottom: 1px solid #e2e8f0; color: #334155;">' + CONFIG.EVENT_DATES + '</td>' +
+                  '</tr>' +
+                  '<tr>' +
+                    '<td style="padding: 12px 18px; color: #64748b; font-weight: 600;">Reporting Venue</td>' +
+                    '<td style="padding: 12px 18px; color: #334155;">' + CONFIG.EVENT_VENUE + '</td>' +
+                  '</tr>' +
+                '</table>' +
 
-        '<div class="cta-container">' +
-          '<a href="' + CONFIG.STATUS_PORTAL_URL + '" class="cta-button" target="_blank">Verify Status Online &rarr;</a>' +
-        '</div>' +
+                '<!-- Next Steps -->' +
+                '<h3 style="font-size: 14px; font-weight: 700; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px; margin: 24px 0 10px 0;">Next Steps</h3>' +
+                '<ul style="margin: 0 0 24px 0; padding-left: 20px; color: #334155; font-size: 14px; line-height: 1.6;">' +
+                  '<li style="margin-bottom: 6px;">Verify your complete team roster and milestone checklist on the official status portal.</li>' +
+                  '<li style="margin-bottom: 6px;">Report at the VVIT campus on <strong>October 26, 2026 at 09:00 AM IST</strong>.</li>' +
+                  '<li>Bring your personal laptops and valid college identity cards for verification.</li>' +
+                '</ul>' +
 
-        '<div class="closing-block">' +
-          'Best regards,' +
-          '<strong>InnoSprint 2026 Organizing Committee</strong>' +
-          '<span>VVIT University, Guntur, Andhra Pradesh</span>' +
-        '</div>' +
-      '</div>' +
+                '<!-- Primary Action Button -->' +
+                '<div style="text-align: center; margin: 28px 0 20px 0;">' +
+                  '<a href="' + portalUrl + '" class="btn-primary" style="display: inline-block; background-color: #0284c7; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 700; padding: 12px 28px; border-radius: 6px; letter-spacing: 0.5px;">View Registration Dossier &rarr;</a>' +
+                '</div>' +
+                '<p style="text-align: center; font-size: 12px; color: #64748b; margin: 0 0 24px 0;">' +
+                  'Or verify directly at: <a href="' + CONFIG.STATUS_PORTAL_URL + '" style="color: #0284c7; text-decoration: underline;">' + CONFIG.STATUS_PORTAL_URL + '</a>' +
+                '</p>' +
 
-      '<div class="footer">' +
-        '<p style="margin: 0 0 6px 0;">You received this official notification because your team registered for InnoSprint 2026.</p>' +
-        '<p style="margin: 0;">Visit: <a href="' + CONFIG.WEBSITE_URL + '" class="footer-link">' + CONFIG.WEBSITE_URL + '</a></p>' +
-      '</div>' +
-    '</div>' +
+                '<!-- Formal Closing -->' +
+                '<div style="border-top: 1px solid #e2e8f0; padding-top: 20px; margin-top: 24px; font-size: 13px; color: #475569;">' +
+                  '<p style="margin: 0 0 4px 0;">Best regards,</p>' +
+                  '<p style="margin: 0; font-weight: 700; color: #0f172a;">INNOSPRINT 2026 Organizing Committee</p>' +
+                  '<p style="margin: 2px 0 0 0; color: #64748b;">Vasireddy Venkatadri Institute of Technology (VVIT)</p>' +
+                  '<p style="margin: 2px 0 0 0; color: #64748b;">Nambur, Guntur, Andhra Pradesh – 522508</p>' +
+                '</div>' +
+              '</td>' +
+            '</tr>' +
+
+            '<!-- Footer -->' +
+            '<tr>' +
+              '<td style="background-color: #f8fafc; border-top: 1px solid #e2e8f0; padding: 20px 32px; text-align: center; font-size: 11px; color: #64748b; line-height: 1.5;">' +
+                '<p style="margin: 0 0 4px 0;">This is an official transactional message sent to registered participants of INNOSPRINT 2026.</p>' +
+                '<p style="margin: 0;">Have questions? Reply directly to this email or reach us at <a href="mailto:' + CONFIG.SUPPORT_EMAIL + '" style="color: #0284c7; text-decoration: none;">' + CONFIG.SUPPORT_EMAIL + '</a>.</p>' +
+              '</td>' +
+            '</tr>' +
+
+          '</table>' +
+        '</td>' +
+      '</tr>' +
+    '</table>' +
   '</body>' +
   '</html>';
 }

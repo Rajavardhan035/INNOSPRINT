@@ -10,7 +10,7 @@ import { supabase, isSupabaseConfigured } from './supabase.js';
  * @param {string} [params.submissionId] - Optional project_submissions UUID
  * @param {boolean} [params.forceRetry=false] - If true, bypasses duplicate check to retry delivery
  */
-export async function sendProjectApprovalEmail({ registrationId, submissionId, forceRetry = false }) {
+export async function sendProjectApprovalEmail({ registrationId, submissionId, forceRetry = false, notificationType = 'shortlisted' }) {
   const targetId = registrationId || submissionId;
   if (!targetId) {
     return { success: false, error: 'Registration or Submission ID is required.' };
@@ -49,6 +49,7 @@ export async function sendProjectApprovalEmail({ registrationId, submissionId, f
         submissionId: submissionId || registrationId,
         forceRetry,
         callerEmail,
+        notificationType,
       },
       headers: callerEmail ? { 'x-caller-email': callerEmail } : {},
     });
@@ -128,33 +129,104 @@ export async function sendEmailNotification({ to, subject, template, data }) {
 }
 
 function generateEmailHtml(template, data) {
+  const portalUrl = `https://inno-sprint.vercel.app/register/status${data.referenceCode ? `?ref=${encodeURIComponent(data.referenceCode)}` : ''}`;
+
   switch (template) {
     case 'registration_confirmation':
       return `
-        <div style="font-family: Arial, sans-serif; background-color: #030712; color: #f3f4f6; padding: 24px; border-radius: 8px;">
-          <h2 style="color: #38bdf8;">INNOSPRINT 2026 - Registration Received</h2>
-          <p>Hello <strong>${data.name || 'Participant'}</strong>,</p>
-          <p>Thank you for registering for INNOSPRINT (October 26–28, 2026) at VVITU!</p>
-          <div style="background-color: #0f172a; padding: 16px; border: 1px solid #0284c7; border-radius: 6px; margin: 16px 0;">
-            <p style="margin: 0; color: #fbbf24;"><strong>Registration Reference:</strong> ${data.referenceCode}</p>
-            <p style="margin: 8px 0 0 0;"><strong>Track/Theme:</strong> ${data.theme}</p>
-            <p style="margin: 8px 0 0 0;"><strong>Participation:</strong> ${data.participationType}</p>
-          </div>
-          <p>You can track your registration status on your participant dashboard or via our status portal.</p>
-          <p style="color: #9ca3af; font-size: 12px; margin-top: 24px;">INNOSPRINT Organizing Committee • VVITU, Guntur, AP</p>
-        </div>
+        <!DOCTYPE html>
+        <html>
+        <head><meta charset="UTF-8"><title>INNOSPRINT 2026: Registration Received</title></head>
+        <body style="margin: 0; padding: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;">
+          <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f1f5f9; padding: 24px 0;">
+            <tr>
+              <td align="center">
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+                  <tr>
+                    <td style="background-color: #0f172a; padding: 24px 32px; border-bottom: 3px solid #0284c7;">
+                      <div style="color: #38bdf8; font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;">National Hackathon 2026</div>
+                      <h1 style="color: #ffffff; font-size: 22px; font-weight: 800; margin: 4px 0 0 0;">INNOSPRINT 2026</h1>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 28px 32px; color: #1e293b; font-size: 15px; line-height: 1.6;">
+                      <p style="margin: 0 0 16px 0; font-size: 16px; font-weight: 600; color: #0f172a;">Dear ${data.name || 'Participant'},</p>
+                      <p style="margin: 0 0 16px 0; color: #334155;">
+                        Thank you for registering for <strong>INNOSPRINT 2026</strong> at Vasireddy Venkatadri Institute of Technology (VVIT). Your application has been logged and queued for review.
+                      </p>
+                      <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; margin: 20px 0; font-size: 13px;">
+                        <tr>
+                          <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; width: 35%; color: #64748b; font-weight: 600;">Reference Code</td>
+                          <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; color: #0284c7; font-family: monospace; font-weight: 700;">${data.referenceCode}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; color: #64748b; font-weight: 600;">Track / Theme</td>
+                          <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; color: #334155;">${data.theme || 'Open Innovation'}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 12px 16px; color: #64748b; font-weight: 600;">Participation Type</td>
+                          <td style="padding: 12px 16px; color: #334155;">${data.participationType || 'Individual'}</td>
+                        </tr>
+                      </table>
+                      <div style="text-align: center; margin: 24px 0;">
+                        <a href="${portalUrl}" style="display: inline-block; background-color: #0284c7; color: #ffffff; text-decoration: none; font-size: 13px; font-weight: 700; padding: 12px 24px; border-radius: 6px;">Check Live Application Status &rarr;</a>
+                      </div>
+                      <div style="border-top: 1px solid #e2e8f0; padding-top: 16px; margin-top: 24px; font-size: 13px; color: #64748b;">
+                        <p style="margin: 0;">INNOSPRINT 2026 Organizing Committee</p>
+                        <p style="margin: 2px 0 0 0;">VVIT University, Guntur, Andhra Pradesh</p>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="background-color: #f8fafc; border-top: 1px solid #e2e8f0; padding: 16px 32px; text-align: center; font-size: 11px; color: #64748b;">
+                      Official Event Portal: <a href="https://inno-sprint.vercel.app" style="color: #0284c7; text-decoration: none;">https://inno-sprint.vercel.app</a>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </body>
+        </html>
       `;
     case 'contact_acknowledgement':
       return `
-        <div style="font-family: Arial, sans-serif; background-color: #030712; color: #f3f4f6; padding: 24px;">
-          <h2 style="color: #38bdf8;">We Received Your Message</h2>
-          <p>Hi ${data.name},</p>
-          <p>Thank you for reaching out to the INNOSPRINT team. Your message reference is <strong>${data.referenceCode}</strong>.</p>
-          <p>Our team will review your query and respond shortly.</p>
-        </div>
+        <!DOCTYPE html>
+        <html>
+        <head><meta charset="UTF-8"><title>INNOSPRINT 2026: Message Received</title></head>
+        <body style="margin: 0; padding: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;">
+          <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f1f5f9; padding: 24px 0;">
+            <tr>
+              <td align="center">
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+                  <tr>
+                    <td style="background-color: #0f172a; padding: 24px 32px; border-bottom: 3px solid #0284c7;">
+                      <h1 style="color: #ffffff; font-size: 20px; font-weight: 800; margin: 0;">INNOSPRINT 2026 Helpdesk</h1>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 24px 32px; color: #1e293b; font-size: 15px; line-height: 1.6;">
+                      <p style="margin: 0 0 12px 0; font-weight: 600; color: #0f172a;">Dear ${data.name || 'Participant'},</p>
+                      <p style="margin: 0 0 16px 0; color: #334155;">
+                        Thank you for reaching out. We have logged your enquiry under inquiry reference: <strong>${data.referenceCode}</strong>.
+                      </p>
+                      <p style="margin: 0 0 16px 0; color: #334155;">
+                        Our student coordinators and technical committee will review your query and reply to this thread shortly.
+                      </p>
+                      <div style="border-top: 1px solid #e2e8f0; padding-top: 16px; margin-top: 20px; font-size: 13px; color: #64748b;">
+                        <p style="margin: 0;">INNOSPRINT 2026 Secretariat • VVIT University</p>
+                      </div>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </body>
+        </html>
       `;
     default:
-      return `<p>${data.message || 'Notification from INNOSPRINT Organizers'}</p>`;
+      return `<p>${data.message || 'Official Notification from INNOSPRINT Organizers'}</p>`;
   }
 }
 

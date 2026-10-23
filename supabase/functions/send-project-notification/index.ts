@@ -620,12 +620,13 @@ serve(async (req: Request) => {
     } catch {}
     console.info(`[send-project-notification] Dispatching shortlist email to GAS webhook (${urlInfo}) for: ${recipientEmail} (${teamName})`);
 
+    const resolvedNotificationType = (body.notificationType || "shortlisted").toString().trim().toLowerCase();
     const gasPayload = {
       secret: webhookSecret,
       recipientEmail: recipientEmail,
       teamName: teamName,
       projectTitle: projectTitle,
-      notificationType: "shortlisted",
+      notificationType: resolvedNotificationType === "approved" ? "approved" : "shortlisted",
       referenceCode: referenceCode,
       theme: theme,
     };
