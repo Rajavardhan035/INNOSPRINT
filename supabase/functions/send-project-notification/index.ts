@@ -243,6 +243,7 @@ serve(async (req: Request) => {
         return jsonResponse(req, { success: false, error: "EMAIL_WEBHOOK_URL is not configured in Supabase secrets." }, 503);
       }
 
+      // Probe A: GET request
       let getStatus = 0;
       let getBody = "";
       try {
@@ -253,8 +254,65 @@ serve(async (req: Request) => {
         getBody = "GET error: " + (e.message || String(e));
       }
 
-      const titleMatch = getBody.match(/<title>([^<]+)<\/title>/i);
-      const pageTitle = titleMatch ? titleMatch[1].trim() : "No <title>";
+      // Probe B: POST test with Content-Type: application/json
+      let postJsonStatus = 0;
+      let postJsonBody = "";
+      try {
+        const postRes = await fetch(webhookUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            secret: webhookSecret,
+            notificationType: "shortlisted",
+            recipientEmail: "test@example.com",
+            teamName: "Diagnostic Test",
+            projectTitle: "Diagnostic Project",
+          }),
+          redirect: "follow",
+        });
+        postJsonStatus = postRes.status;
+        postJsonBody = await postRes.text();
+      } catch (e: any) {
+        postJsonBody = "POST JSON error: " + (e.message || String(e));
+      }
+
+      // Probe C: POST test with Content-Type: text/plain;charset=utf-8 (GAS standard)
+      let postTextStatus = 0;
+      let postTextBody = "";
+      try {
+        const postRes = await fetch(webhookUrl, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({
+            secret: webhookSecret,
+            notificationType: "shortlisted",
+            recipientEmail: "test@example.com",
+            teamName: "Diagnostic Test",
+            projectTitle: "Diagnostic Project",
+          }),
+          redirect: "follow",
+        });
+        postTextStatus = postRes.status;
+        postTextBody = await postRes.text();
+      } catch (e: any) {
+        postTextBody = "POST text error: " + (e.message || String(e));
+      }
+
+      // Probe D: Manual redirect inspection
+      let manualStatus = 0;
+      let manualLocation = "";
+      try {
+        const manualRes = await fetch(webhookUrl, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({ ping: true }),
+          redirect: "manual",
+        });
+        manualStatus = manualRes.status;
+        manualLocation = manualRes.headers.get("Location") || "";
+      } catch (e: any) {
+        manualLocation = "Manual error: " + (e.message || String(e));
+      }
 
       return jsonResponse(req, {
         success: true,
@@ -262,10 +320,24 @@ serve(async (req: Request) => {
         webhookConfigured: Boolean(webhookUrl),
         secretConfigured: Boolean(webhookSecret),
         urlEndsWithExec: webhookUrl.endsWith("/exec"),
-        getStatus,
-        pageTitle,
-        getBodySnippet: getBody.slice(0, 300),
-        isHtml: getBody.includes("<html") || getBody.includes("<!DOCTYPE"),
+        get: {
+          status: getStatus,
+          bodySnippet: getBody.slice(0, 500),
+        },
+        postJson: {
+          status: postJsonStatus,
+          bodySnippet: postJsonBody.slice(0, 500),
+          isHtml: postJsonBody.includes("<html") || postJsonBody.includes("<!DOCTYPE"),
+        },
+        postText: {
+          status: postTextStatus,
+          bodySnippet: postTextBody.slice(0, 500),
+          isHtml: postTextBody.includes("<html") || postTextBody.includes("<!DOCTYPE"),
+        },
+        manualRedirect: {
+          status: manualStatus,
+          location: manualLocation ? manualLocation.slice(0, 100) + "..." : "none",
+        },
       });
     }
 
@@ -273,17 +345,27 @@ serve(async (req: Request) => {
     let registrationRecord: any = null;
     let projectSubmissionRecord: any = null;
 
-    // Check registrations by UUID id or reference_code
-    const { data: regData } = await adminClient
-      .from("registrations")
-      .select("*, teams(id, team_name)")
-      .or(`id.eq.${targetId},reference_code.eq.${targetId}`)
-      .maybeSingle();
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
 
-    if (regData) {
+    // Check registrations by UUID id or reference_code safely without UUID cast error
+    if (isUuid) {
+      const { data: regData } = await adminClient
+        .from("registrations")
+        .select("*, teams(id, team_name)")
+        .eq("id", targetId)
+        .maybeSingle();
       registrationRecord = regData;
     } else {
-      // Check project_submissions by ID
+      const { data: regData } = await adminClient
+        .from("registrations")
+        .select("*, teams(id, team_name)")
+        .eq("reference_code", targetId)
+        .maybeSingle();
+      registrationRecord = regData;
+    }
+
+    if (!registrationRecord && isUuid) {
+      // Check project_submissions by UUID id
       const { data: subData } = await adminClient
         .from("project_submissions")
         .select("*, registrations(*, teams(id, team_name))")
@@ -555,7 +637,7 @@ serve(async (req: Request) => {
     try {
       gasResponse = await fetch(webhookUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify(gasPayload),
         signal: controller.signal,
         redirect: "follow", // Follow GAS 302 redirects automatically
