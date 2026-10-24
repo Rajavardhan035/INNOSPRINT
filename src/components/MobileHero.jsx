@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Zap, ArrowRight, RotateCcw, ChevronDown, Volume2, VolumeX, 
-  SkipForward, Play, Pause, Sparkles 
+  SkipForward, Play, Pause, Sparkles, Clock 
 } from 'lucide-react';
 
 export default function MobileHero() {
@@ -361,14 +361,14 @@ export default function MobileHero() {
               </span>
             </div>
 
-            {/* Primary Action: Register Now */}
+            {/* Primary Action: Registrations Closed */}
             <Link
-              to="/register"
+              to="/status"
               onClick={(e) => e.stopPropagation()}
-              className="w-full py-2.5 xs:py-3.5 px-4 xs:px-6 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-cyan-500 hover:from-amber-400 hover:to-cyan-400 text-white font-black text-xs xs:text-sm tracking-wider uppercase font-['Orbitron'] flex items-center justify-center space-x-2 text-center shadow-[0_8px_30px_rgba(249,115,22,0.4)] active:scale-95 transition-all"
+              className="w-full py-2.5 xs:py-3.5 px-4 xs:px-6 rounded-2xl bg-gradient-to-r from-rose-600 via-red-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white font-black text-xs xs:text-sm tracking-wider uppercase font-['Orbitron'] flex items-center justify-center space-x-2 text-center shadow-[0_8px_30px_rgba(225,29,72,0.4)] active:scale-95 transition-all"
             >
-              <Zap className="w-3.5 h-3.5 xs:w-4 xs:h-4 text-amber-200 fill-amber-200 animate-pulse" />
-              <span>REGISTER NOW</span>
+              <Clock className="w-3.5 h-3.5 xs:w-4 xs:h-4 text-amber-200" />
+              <span>REGISTRATIONS CLOSED</span>
               <ArrowRight className="w-3.5 h-3.5 xs:w-4 xs:h-4 ml-1" />
             </Link>
 

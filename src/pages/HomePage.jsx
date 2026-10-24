@@ -5,7 +5,7 @@ import { THEMES, EVENT_DETAILS, DEFAULT_FAQS } from '../lib/constants';
 import { 
   Zap, Bot, Cpu, Sparkles, ChevronRight, Award, Calendar, MapPin, 
   CheckCircle2, HelpCircle, Shield, Users, ArrowRight, Play, Pause, 
-  Volume2, VolumeX 
+  Volume2, VolumeX, Clock 
 } from 'lucide-react';
 import MobileHero from '../components/MobileHero';
 
@@ -191,12 +191,11 @@ export default function HomePage() {
         {/* Action Buttons Centered */}
         <div className="flex flex-wrap items-center justify-center gap-4 pt-4">
           <Link
-            to="/register"
-            className="px-8 py-4 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-cyan-500 text-white font-extrabold text-sm sm:text-base uppercase tracking-wider shadow-xl shadow-orange-500/25 hover:shadow-orange-500/40 hover:scale-105 transition-all flex items-center space-x-2 font-['Orbitron']"
+            to="/status"
+            className="px-8 py-4 rounded-xl bg-gradient-to-r from-rose-600 via-red-600 to-amber-600 text-white font-extrabold text-sm sm:text-base uppercase tracking-wider shadow-xl shadow-rose-950/40 hover:scale-105 transition-all flex items-center space-x-2 font-['Orbitron']"
           >
-            <Zap className="w-5 h-5 text-amber-200 fill-amber-200" />
-            <span>REGISTER NOW</span>
-            <ChevronRight className="w-5 h-5" />
+            <Clock className="w-5 h-5 text-amber-200" />
+            <span>REGISTRATIONS CLOSED</span>
           </Link>
           <Link
             to="/themes"
@@ -298,21 +297,25 @@ export default function HomePage() {
       </section>
 
       {/* 7. QUICK REGISTER CTA BANNER */}
-      <section className="py-16 px-4 bg-gradient-to-r from-cyan-950 via-gray-900 to-amber-950 border-t border-cyan-500/30 text-center relative overflow-hidden">
+      <section className="py-16 px-4 bg-gradient-to-r from-cyan-950 via-gray-900 to-rose-950 border-t border-cyan-500/30 text-center relative overflow-hidden">
         <div className="max-w-4xl mx-auto relative z-10 space-y-6">
+          <div className="inline-flex items-center space-x-2 px-4 py-1.5 rounded-full bg-rose-500/20 border border-rose-500/40 text-rose-300 text-xs font-bold uppercase tracking-widest font-['Orbitron']">
+            <span className="w-2 h-2 rounded-full bg-rose-400 animate-pulse" />
+            <span>REGISTRATION PERIOD COMPLETED</span>
+          </div>
           <h2 className="text-4xl sm:text-5xl font-black uppercase font-['Orbitron']">
-            READY TO JOIN <span className="text-amber-400">INNOSPRINT 2026?</span>
+            REGISTRATIONS ARE <span className="text-rose-400">OFFICIALLY CLOSED</span>
           </h2>
           <p className="text-gray-300 text-lg max-w-2xl mx-auto font-medium">
-            Register your team today. 48 hours, ₹50,000 in prizes, and endless innovation await you at VVITU.
+            The registration window for INNOSPRINT 2026 has concluded. Thank you to all teams who registered! You can verify your registration dossier and monitor shortlist announcements.
           </p>
           <div className="flex flex-col sm:flex-row justify-center items-center gap-4 pt-4">
             <Link
-              to="/register"
-              className="w-full sm:w-auto px-8 py-4 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-cyan-500 text-white font-extrabold text-base uppercase tracking-wider shadow-xl shadow-orange-500/30 hover:scale-105 transition-all font-['Orbitron'] flex items-center justify-center space-x-2"
+              to="/status"
+              className="w-full sm:w-auto px-8 py-4 rounded-xl bg-gradient-to-r from-cyan-500 via-blue-600 to-amber-500 text-white font-extrabold text-base uppercase tracking-wider shadow-xl shadow-cyan-950/50 hover:scale-105 transition-all font-['Orbitron'] flex items-center justify-center space-x-2"
             >
-              <span>Register Now</span>
-              <ChevronRight className="w-5 h-5" />
+              <CheckCircle2 className="w-5 h-5" />
+              <span>Check Registration Status</span>
             </Link>
             <Link
               to="/contact"

@@ -21,8 +21,12 @@ export const EVENT_DETAILS = {
     contactPhone: "+91 90145 09649",
     contactPhoneRaw: "9014509649",
     coordinator: "INNOSPRINT Organizing Team",
-  }
+  },
+  registrationsOpen: false,
+  registrationClosedNotice: "The registration window for INNOSPRINT 2026 has officially concluded. Registration time is completed."
 };
+
+export const REGISTRATIONS_OPEN = false;
 
 export const PARTNERS_DATA = {
   technologyPartner: {

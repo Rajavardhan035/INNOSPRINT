@@ -419,12 +419,12 @@ export default function ParticipantDashboard() {
               </div>
             ) : (
               <div className="text-xs text-gray-400 p-4 rounded-xl bg-gray-950 text-center space-y-3">
-                <p>No active registration record found for your account.</p>
+                <p>No active registration record found for your account. Registrations are officially closed.</p>
                 <a
-                  href="/register"
-                  className="inline-block px-4 py-2 rounded-lg bg-cyan-500 text-black font-extrabold uppercase font-['Orbitron'] text-[11px]"
+                  href="/status"
+                  className="inline-block px-4 py-2 rounded-lg bg-gray-800 border border-gray-700 text-cyan-300 hover:text-white font-extrabold uppercase font-['Orbitron'] text-[11px]"
                 >
-                  Register Now
+                  Check Existing Status
                 </a>
               </div>
             )}

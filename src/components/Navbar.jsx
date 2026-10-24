@@ -81,12 +81,13 @@ export default function Navbar() {
         </div>
 
         {/* Desktop CTA / Auth buttons */}
-        <div className="hidden lg:flex items-center space-x-4">
+        <div className="hidden lg:flex items-center space-x-3">
           <Link
-            to="/register"
-            className="px-5 py-2.5 rounded-full bg-gradient-to-r from-cyan-500 via-blue-600 to-amber-500 text-white font-extrabold text-xs tracking-wider uppercase shadow-lg shadow-cyan-500/25 hover:shadow-cyan-500/40 hover:scale-105 transition-all font-['Orbitron']"
+            to="/status"
+            className="px-4 py-2 rounded-full bg-gradient-to-r from-rose-600/90 via-red-600/90 to-amber-600/90 hover:from-rose-500 hover:to-amber-500 text-white font-extrabold text-xs tracking-wider uppercase shadow-lg shadow-rose-950/40 hover:scale-105 transition-all font-['Orbitron'] flex items-center space-x-1.5"
           >
-            Register Now
+            <span className="w-2 h-2 rounded-full bg-rose-300 animate-pulse" />
+            <span>Registrations Closed</span>
           </Link>
 
           {user ? (
@@ -130,10 +131,11 @@ export default function Navbar() {
         {/* Mobile Menu Button */}
         <div className="flex items-center lg:hidden space-x-3">
           <Link
-            to="/register"
-            className="px-3.5 py-1.5 rounded-full bg-gradient-to-r from-amber-500 to-cyan-500 text-white text-[11px] font-bold uppercase tracking-wider font-['Orbitron']"
+            to="/status"
+            className="px-3 py-1.5 rounded-full bg-rose-950/90 border border-rose-500/40 text-rose-200 text-[11px] font-bold uppercase tracking-wider font-['Orbitron'] flex items-center space-x-1"
           >
-            Register
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+            <span>Closed</span>
           </Link>
 
           <button
@@ -209,10 +211,10 @@ export default function Navbar() {
                     Sign In
                   </Link>
                   <Link
-                    to="/register"
-                    className="w-1/2 text-center py-2.5 rounded-lg bg-gradient-to-r from-cyan-500 to-amber-500 text-white font-extrabold uppercase text-sm shadow-md"
+                    to="/status"
+                    className="w-1/2 text-center py-2.5 rounded-lg bg-gradient-to-r from-rose-600 to-amber-600 text-white font-extrabold uppercase text-xs shadow-md flex items-center justify-center space-x-1"
                   >
-                    Register
+                    <span>Check Status</span>
                   </Link>
                 </div>
               )}

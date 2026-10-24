@@ -85,10 +85,10 @@ export default function ThemesPage() {
                 </div>
               </div>
               <Link
-                to={`/register?theme=${encodeURIComponent(theme.name)}`}
-                className="px-6 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-cyan-500 text-white font-extrabold uppercase text-xs tracking-wider font-['Orbitron'] shadow-md self-start md:self-center hover:scale-105 transition-transform"
+                to="/status"
+                className="px-6 py-3 rounded-xl bg-gradient-to-r from-gray-700 to-gray-800 text-gray-300 hover:text-white border border-gray-600 font-extrabold uppercase text-xs tracking-wider font-['Orbitron'] shadow-md self-start md:self-center hover:scale-105 transition-transform"
               >
-                Register For This Track
+                Registrations Closed • Check Status
               </Link>
             </div>
 
@@ -117,10 +117,10 @@ export default function ThemesPage() {
       {/* CTA */}
       <section className="mt-16 text-center">
         <Link
-          to="/register"
-          className="inline-flex items-center space-x-3 px-8 py-4 rounded-xl bg-gradient-to-r from-cyan-500 via-blue-600 to-amber-500 text-white font-extrabold uppercase text-sm tracking-wider font-['Orbitron'] shadow-xl hover:scale-105 transition-all"
+          to="/status"
+          className="inline-flex items-center space-x-3 px-8 py-4 rounded-xl bg-gradient-to-r from-cyan-700 via-blue-800 to-gray-800 text-white font-extrabold uppercase text-sm tracking-wider font-['Orbitron'] shadow-xl hover:scale-105 transition-all border border-cyan-500/30"
         >
-          <span>Select Your Theme & Register Team</span>
+          <span>Registrations Closed • Check Application Status</span>
           <ChevronRight className="w-5 h-5" />
         </Link>
       </section>

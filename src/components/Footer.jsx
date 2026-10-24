@@ -60,7 +60,7 @@ export default function Footer() {
                 <Link to="/prizes" className="hover:text-cyan-400 transition-colors">Prizes & Benefits</Link>
               </li>
               <li>
-                <Link to="/register" className="hover:text-amber-400 transition-colors font-bold text-cyan-300">Register Your Team</Link>
+                <Link to="/status" className="hover:text-amber-400 transition-colors font-bold text-cyan-300">Registrations (Closed)</Link>
               </li>
             </ul>
 

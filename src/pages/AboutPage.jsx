@@ -396,21 +396,21 @@ export default function AboutPage() {
       <section className="py-16 px-4 text-center">
         <div className="max-w-3xl mx-auto p-10 rounded-2xl bg-gradient-to-r from-cyan-950 via-gray-900 to-amber-950 border border-cyan-500/40 space-y-6">
           <h2 className="text-3xl sm:text-4xl font-black uppercase font-['Orbitron']">
-            READY TO CODE AT <span className="text-amber-400">INNOSPRINT?</span>
+            REGISTRATIONS ARE <span className="text-amber-400">CLOSED</span>
           </h2>
           <p className="text-gray-300 text-sm font-medium">
-            Register your team now for the October 26–28 sprint at VVITU.
+            The registration window for INNOSPRINT 2026 has concluded. Registered teams can check evaluation and dossier status below.
           </p>
           <div className="flex flex-col sm:flex-row justify-center items-center gap-4">
             <Link
-              to="/register"
-              className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-gradient-to-r from-cyan-500 to-amber-500 text-white font-extrabold uppercase tracking-wider text-sm font-['Orbitron'] shadow-lg"
+              to="/status"
+              className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-extrabold uppercase tracking-wider text-sm font-['Orbitron'] shadow-lg hover:scale-105 transition-transform"
             >
-              Register Now
+              Check Registration Status
             </Link>
             <Link
               to="/contact"
-              className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-gray-900 border border-gray-700 text-gray-200 font-bold uppercase tracking-wider text-sm font-['Orbitron']"
+              className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-gray-900 border border-gray-700 text-gray-200 font-bold uppercase tracking-wider text-sm font-['Orbitron'] hover:bg-gray-800 transition-colors"
             >
               Contact Organizers
             </Link>

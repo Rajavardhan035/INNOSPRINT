@@ -3,8 +3,8 @@ import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth, isValidUuid } from '../lib/auth';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { sendEmailNotification } from '../lib/email';
-import { THEMES } from '../lib/constants';
-import { CheckCircle2, AlertCircle, ArrowRight, ArrowLeft, User, Users, ShieldCheck, Zap, Copy, Check } from 'lucide-react';
+import { THEMES, EVENT_DETAILS, REGISTRATIONS_OPEN } from '../lib/constants';
+import { CheckCircle2, AlertCircle, ArrowRight, ArrowLeft, User, Users, ShieldCheck, Zap, Copy, Check, Clock, Search, Lock } from 'lucide-react';
 
 export default function RegisterPage() {
   const [searchParams] = useSearchParams();
@@ -317,6 +317,10 @@ export default function RegisterPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!REGISTRATIONS_OPEN) {
+      setErrorMessage('Registrations for INNOSPRINT 2026 are officially closed. No new registrations are being accepted.');
+      return;
+    }
     if (loading) return;
     if (!validateStep()) return;
 
@@ -561,6 +565,104 @@ export default function RegisterPage() {
       setTimeout(() => setCopiedRef(false), 2000);
     }
   };
+
+  // REGISTRATIONS CLOSED VIEW
+  if (!REGISTRATIONS_OPEN) {
+    return (
+      <div className="min-h-screen bg-gray-950 text-white font-['Rajdhani'] pt-24 pb-20 flex items-center justify-center p-4 selection:bg-rose-500 selection:text-white">
+        <div className="max-w-2xl w-full p-8 sm:p-12 rounded-3xl bg-gradient-to-b from-[#140b18]/95 via-[#0d0914]/95 to-[#06040a]/95 border border-rose-500/30 shadow-[0_20px_60px_rgba(0,0,0,0.85),0_0_50px_rgba(244,63,94,0.18)] text-center space-y-7 relative overflow-hidden">
+          
+          {/* Top Amber-Rose Glow Line */}
+          <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-rose-500 via-amber-500 to-rose-500" />
+
+          {/* Status Badge & Icon */}
+          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-rose-950/80 to-rose-900/30 border border-rose-500/40 flex items-center justify-center mx-auto text-rose-400 shadow-xl shadow-rose-950/50">
+            <Clock className="w-10 h-10 animate-pulse text-amber-300" />
+          </div>
+
+          <div className="space-y-2">
+            <span className="inline-flex items-center space-x-2 px-4 py-1.5 rounded-full bg-rose-500/15 border border-rose-500/40 text-rose-300 text-xs font-bold font-['Orbitron'] uppercase tracking-widest">
+              <span className="w-2 h-2 rounded-full bg-rose-400 animate-ping inline-block" />
+              <span>REGISTRATION PERIOD COMPLETED</span>
+            </span>
+
+            <h1 className="text-3xl sm:text-5xl font-black font-['Orbitron'] uppercase tracking-tight text-white pt-2">
+              REGISTRATIONS <span className="text-transparent bg-clip-text bg-gradient-to-r from-rose-400 via-amber-400 to-rose-400">CLOSED</span>
+            </h1>
+
+            <p className="text-base text-gray-300 leading-relaxed font-medium max-w-lg mx-auto pt-1">
+              The official registration deadline for <strong className="text-cyan-300">INNOSPRINT 2026</strong> has concluded. We are no longer accepting new participant or team registrations.
+            </p>
+          </div>
+
+          {/* Event Status Overview Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left">
+            <div className="p-4 rounded-2xl bg-black/50 border border-white/10 space-y-1">
+              <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider font-['Orbitron'] block">Event Dates</span>
+              <span className="text-sm font-extrabold text-white font-mono">{EVENT_DETAILS.dates}</span>
+              <span className="text-xs text-gray-400 block">48-Hour National Hackathon</span>
+            </div>
+            <div className="p-4 rounded-2xl bg-black/50 border border-white/10 space-y-1">
+              <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider font-['Orbitron'] block">Current Phase</span>
+              <span className="text-sm font-extrabold text-amber-300 font-mono">Dossier Evaluation</span>
+              <span className="text-xs text-gray-400 block">Shortlisting & Notifications Active</span>
+            </div>
+          </div>
+
+          {/* Stored Registration Check */}
+          {lastRef && (
+            <div className="p-4 rounded-2xl bg-cyan-950/40 border border-cyan-500/30 text-left flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div>
+                <span className="text-[11px] font-bold text-cyan-400 uppercase font-['Orbitron'] block">Your Registered Reference ID:</span>
+                <span className="text-lg font-black font-mono text-amber-300 tracking-wider">{lastRef}</span>
+              </div>
+              <Link
+                to={`/status?ref=${encodeURIComponent(lastRef)}`}
+                className="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-extrabold text-xs uppercase tracking-wider font-['Orbitron'] transition-colors"
+              >
+                View Dossier
+              </Link>
+            </div>
+          )}
+
+          {/* Action Navigation */}
+          <div className="pt-2 flex flex-col sm:flex-row justify-center items-center gap-3.5">
+            <Link
+              to="/status"
+              className="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-gradient-to-r from-cyan-500 via-blue-600 to-amber-500 hover:from-cyan-400 hover:to-amber-400 text-white font-extrabold text-xs uppercase tracking-wider font-['Orbitron'] shadow-xl shadow-cyan-950/50 hover:scale-105 transition-all flex items-center justify-center space-x-2"
+            >
+              <Search className="w-4 h-4" />
+              <span>Check Registration Status</span>
+              <ArrowRight className="w-4 h-4 ml-1" />
+            </Link>
+
+            <Link
+              to="/"
+              className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-gray-900 hover:bg-gray-800 border border-gray-700 text-gray-200 hover:text-white font-bold text-xs uppercase tracking-wider font-['Orbitron'] transition-colors"
+            >
+              Return To Homepage
+            </Link>
+          </div>
+
+          {/* Helpdesk Contacts */}
+          <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 text-xs text-gray-400 text-center space-y-1">
+            <p>
+              Already registered and need assistance? Contact the organizing committee at{' '}
+              <a href={`mailto:${EVENT_DETAILS.organizers.contactEmail}`} className="text-cyan-400 underline font-mono">
+                {EVENT_DETAILS.organizers.contactEmail}
+              </a>
+              {' '}or call{' '}
+              <a href={`tel:${(EVENT_DETAILS.organizers.contactPhone || '+919014509649').replace(/\s+/g, '')}`} className="text-amber-400 underline font-mono">
+                {EVENT_DETAILS.organizers.contactPhone}
+              </a>
+              .
+            </p>
+          </div>
+
+        </div>
+      </div>
+    );
+  }
 
   // SUCCESS SCREEN VIEW
   if (registrationSuccess) {

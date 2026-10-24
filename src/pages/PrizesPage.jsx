@@ -83,10 +83,10 @@ export default function PrizesPage() {
         {/* CTA */}
         <div className="text-center pt-8">
           <Link
-            to="/register"
-            className="inline-flex items-center space-x-3 px-8 py-4 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-cyan-500 text-white font-extrabold uppercase text-sm tracking-wider font-['Orbitron'] shadow-xl hover:scale-105 transition-all"
+            to="/status"
+            className="inline-flex items-center space-x-3 px-8 py-4 rounded-xl bg-gradient-to-r from-gray-700 via-gray-800 to-cyan-900 border border-cyan-500/40 text-cyan-300 hover:text-white font-extrabold uppercase text-sm tracking-wider font-['Orbitron'] shadow-xl hover:scale-105 transition-all"
           >
-            <span>Register Now & Claim Your Spot</span>
+            <span>Registrations Closed • Check Status</span>
             <ChevronRight className="w-5 h-5" />
           </Link>
         </div>

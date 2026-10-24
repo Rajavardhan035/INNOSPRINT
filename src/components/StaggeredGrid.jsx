@@ -505,11 +505,11 @@ export function StaggeredGrid({
                     </div>
 
                     <Link
-                      to={`/register?theme=${encodeURIComponent(item.themeValue || item.title)}`}
-                      className="w-full py-3 rounded-xl bg-gradient-to-r from-cyan-500 via-blue-600 to-amber-500 text-white font-extrabold text-xs uppercase tracking-wider font-['Orbitron'] shadow-lg hover:scale-[1.02] transition-transform flex items-center justify-center space-x-2"
+                      to="/status"
+                      className="w-full py-3 rounded-xl bg-gradient-to-r from-gray-800 to-gray-900 border border-gray-700 hover:border-cyan-500/50 text-gray-300 hover:text-white font-extrabold text-xs uppercase tracking-wider font-['Orbitron'] shadow-lg hover:scale-[1.02] transition-transform flex items-center justify-center space-x-2"
                     >
-                      <span>Select Track & Register</span>
-                      <ArrowRight className="w-4 h-4" />
+                      <span>Registrations Closed • Check Status</span>
+                      <ArrowRight className="w-4 h-4 text-cyan-400" />
                     </Link>
                   </div>
                 </div>

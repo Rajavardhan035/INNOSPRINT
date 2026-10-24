@@ -995,10 +995,10 @@ export default function RulesPage() {
 
           <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
-              to="/register"
-              className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-cyan-500 hover:from-amber-400 hover:to-cyan-400 text-white font-black text-xs sm:text-sm uppercase tracking-wider font-['Orbitron'] flex items-center justify-center space-x-2.5 shadow-[0_8px_30px_rgba(249,115,22,0.35)] hover:scale-[1.02] active:scale-95 transition-all"
+              to="/status"
+              className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-gradient-to-r from-cyan-600 via-blue-600 to-gray-800 hover:from-cyan-500 hover:to-gray-700 text-white font-black text-xs sm:text-sm uppercase tracking-wider font-['Orbitron'] flex items-center justify-center space-x-2.5 shadow-[0_8px_30px_rgba(6,182,212,0.25)] hover:scale-[1.02] active:scale-95 transition-all"
             >
-              <span>REGISTER YOUR TEAM</span>
+              <span>CHECK REGISTRATION STATUS (CLOSED)</span>
               <ArrowRight className="w-4 h-4" />
             </Link>
 

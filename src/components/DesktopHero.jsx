@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Volume2, VolumeX, Play, Pause, ChevronRight, Shield, Award, Calendar, Zap, Sparkles } from 'lucide-react';
+import { Volume2, VolumeX, Play, Pause, ChevronRight, Shield, Award, Calendar, Zap, Sparkles, Clock } from 'lucide-react';
 
 export default function DesktopHero() {
   const [isMuted, setIsMuted] = useState(true);
@@ -108,19 +108,20 @@ export default function DesktopHero() {
           </button>
 
           <a
-            href="/register"
-            className="px-5 md:px-6 py-2.5 rounded-full bg-gradient-to-r from-cyan-500 via-blue-600 to-amber-500 text-white font-bold text-xs md:text-sm tracking-wider uppercase shadow-lg shadow-cyan-500/25 hover:shadow-cyan-500/40 hover:scale-105 transition-all"
+            href="/status"
+            className="px-5 md:px-6 py-2 rounded-full bg-gradient-to-r from-rose-600 to-amber-600 text-white font-bold text-xs md:text-sm tracking-wider uppercase shadow-lg shadow-rose-950/40 hover:scale-105 transition-all flex items-center space-x-1.5"
           >
-            Register Now
+            <span className="w-2 h-2 rounded-full bg-rose-300 animate-pulse" />
+            <span>Registrations Closed</span>
           </a>
         </div>
       </header>
 
       {/* DESKTOP HERO CONTENT */}
       <main className="relative z-10 w-full max-w-6xl mx-auto px-8 py-16 flex flex-col items-center text-center my-auto">
-        <div className="inline-flex items-center space-x-2 px-4 py-1.5 rounded-full bg-cyan-950/80 border border-cyan-500/30 text-cyan-300 text-xs font-bold tracking-widest uppercase mb-6 backdrop-blur-md shadow-inner">
-          <Sparkles className="w-4 h-4 text-amber-400 animate-spin" style={{ animationDuration: '6s' }} />
-          <span>GLOBAL AI & ROBOTICS HACKATHON 2026</span>
+        <div className="inline-flex items-center space-x-2 px-4 py-1.5 rounded-full bg-rose-950/80 border border-rose-500/30 text-rose-300 text-xs font-bold tracking-widest uppercase mb-6 backdrop-blur-md shadow-inner">
+          <Clock className="w-4 h-4 text-amber-400" />
+          <span>REGISTRATION WINDOW COMPLETED</span>
         </div>
 
         {/* 3D Title */}
@@ -144,10 +145,11 @@ export default function DesktopHero() {
         {/* CTAs */}
         <div className="flex flex-row items-center justify-center space-x-6">
           <a
-            href="/register"
-            className="px-8 py-4 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-cyan-500 text-white font-extrabold text-base tracking-wider uppercase shadow-xl shadow-orange-500/30 hover:shadow-orange-500/50 hover:scale-105 transition-all flex items-center space-x-3 group font-['Orbitron']"
+            href="/status"
+            className="px-8 py-4 rounded-xl bg-gradient-to-r from-rose-600 via-red-600 to-amber-600 text-white font-extrabold text-base tracking-wider uppercase shadow-xl shadow-rose-950/50 hover:scale-105 transition-all flex items-center space-x-3 group font-['Orbitron']"
           >
-            <span>REGISTER NOW</span>
+            <Clock className="w-5 h-5 text-amber-200" />
+            <span>REGISTRATIONS CLOSED (CHECK STATUS)</span>
             <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
           </a>
           <a
