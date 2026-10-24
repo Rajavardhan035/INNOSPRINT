@@ -101,11 +101,12 @@ serve(async (req: Request) => {
     }
     const targetId = (body.submissionId || body.registrationId || "").trim();
     const forceRetry = Boolean(body.forceRetry);
+    const action = (body.action || "").trim().toLowerCase();
 
-    if (!targetId && !body.probeGas) {
+    if (!targetId && !body.probeGas && !action) {
       return jsonResponse(
         req,
-        { success: false, error: "Bad Request: Missing submissionId or registrationId parameter." },
+        { success: false, error: "Bad Request: Missing submissionId, registrationId, or action parameter." },
         400
       );
     }
@@ -229,10 +230,176 @@ serve(async (req: Request) => {
         req,
         {
           success: false,
-          error: "Forbidden: You do not have organizer or superadmin permissions to trigger project notifications.",
+          error: "Forbidden: You do not have organizer or superadmin permissions to perform this action.",
         },
         403
       );
+    }
+
+    // 5. Authorized Action: Hard-delete registration and all linked records using service role
+    if (action === "delete_registration" || action === "purge_deleted") {
+      let deletedCount = 0;
+      let targetRef = "";
+      let targetEmail = (body.applicantEmail || "").trim().toLowerCase();
+      const explicitTeamId = body.teamId;
+
+      if (action === "delete_registration" && (targetId || targetEmail)) {
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
+        let regRows: any[] = [];
+        if (isUuid) {
+          const { data } = await adminClient
+            .from("registrations")
+            .select("id, reference_code, team_id, applicant_email")
+            .eq("id", targetId);
+          if (data) regRows = data;
+        } else if (targetId) {
+          const { data } = await adminClient
+            .from("registrations")
+            .select("id, reference_code, team_id, applicant_email")
+            .eq("reference_code", targetId);
+          if (data) regRows = data;
+        }
+
+        // Also check if targetId matches an applicant email directly
+        if (regRows.length === 0 && (targetId.includes("@") || targetEmail)) {
+          const emailQuery = targetEmail || targetId.trim().toLowerCase();
+          const { data } = await adminClient
+            .from("registrations")
+            .select("id, reference_code, team_id, applicant_email")
+            .ilike("applicant_email", emailQuery);
+          if (data) regRows = data;
+        }
+
+        for (const reg of regRows) {
+          targetRef = reg.reference_code;
+          if (!targetEmail) targetEmail = (reg.applicant_email || "").trim().toLowerCase();
+          const regId = reg.id;
+          const teamId = reg.team_id;
+
+          // Cascade delete linked entities
+          await adminClient.from("project_notifications").delete().eq("registration_id", regId);
+          await adminClient.from("project_submissions").delete().eq("registration_id", regId);
+          await adminClient.from("certificates").delete().eq("registration_id", regId);
+
+          const { error: delErr } = await adminClient.from("registrations").delete().eq("id", regId);
+          if (!delErr) deletedCount++;
+
+          if (teamId) {
+            await adminClient.from("team_members").delete().eq("team_id", teamId);
+            await adminClient.from("teams").delete().eq("id", teamId);
+          }
+        }
+
+        // Clean up explicit teamId if provided
+        if (explicitTeamId) {
+          await adminClient.from("team_members").delete().eq("team_id", explicitTeamId);
+          await adminClient.from("teams").delete().eq("id", explicitTeamId);
+        }
+
+        // Also permanently remove any lingering rows or team_members for this email
+        if (targetEmail) {
+          await adminClient.from("team_members").delete().ilike("member_email", targetEmail);
+          const { data: ghostRows } = await adminClient
+            .from("registrations")
+            .select("id, team_id")
+            .ilike("applicant_email", targetEmail);
+          if (ghostRows && ghostRows.length > 0) {
+            for (const g of ghostRows) {
+              await adminClient.from("project_notifications").delete().eq("registration_id", g.id);
+              await adminClient.from("project_submissions").delete().eq("registration_id", g.id);
+              await adminClient.from("certificates").delete().eq("registration_id", g.id);
+              await adminClient.from("registrations").delete().eq("id", g.id);
+              if (g.team_id) {
+                await adminClient.from("team_members").delete().eq("team_id", g.team_id);
+                await adminClient.from("teams").delete().eq("id", g.team_id);
+              }
+              deletedCount++;
+            }
+          }
+        }
+      }
+
+      // Purge all orphaned/soft-deleted rows and orphaned teams across database
+      if (action === "purge_deleted") {
+        // A. Purge soft-deleted/test registrations
+        const { data: ghosts } = await adminClient
+          .from("registrations")
+          .select("id, team_id, applicant_email")
+          .or("organizer_notes.ilike.%__DELETED__%,reference_code.ilike.TEST-DUP-%,status.eq.__DELETED__");
+        if (ghosts && ghosts.length > 0) {
+          for (const g of ghosts) {
+            await adminClient.from("project_notifications").delete().eq("registration_id", g.id);
+            await adminClient.from("project_submissions").delete().eq("registration_id", g.id);
+            await adminClient.from("certificates").delete().eq("registration_id", g.id);
+            await adminClient.from("registrations").delete().eq("id", g.id);
+            if (g.team_id) {
+              await adminClient.from("team_members").delete().eq("team_id", g.team_id);
+              await adminClient.from("teams").delete().eq("id", g.team_id);
+            }
+            deletedCount++;
+          }
+        }
+
+        // B. Purge orphaned team_members and teams that have no registration
+        const { data: allActiveRegs } = await adminClient
+          .from("registrations")
+          .select("team_id")
+          .not("team_id", "is", null);
+        const activeTeamIds = new Set((allActiveRegs || []).map((r: any) => r.team_id));
+
+        const { data: allTeams } = await adminClient.from("teams").select("id");
+        if (allTeams && allTeams.length > 0) {
+          for (const t of allTeams) {
+            if (!activeTeamIds.has(t.id)) {
+              await adminClient.from("team_members").delete().eq("team_id", t.id);
+              await adminClient.from("teams").delete().eq("id", t.id);
+              deletedCount++;
+            }
+          }
+        }
+
+        // Also purge any orphaned team_members whose team_id is not in activeTeamIds
+        const { data: allMembers } = await adminClient.from("team_members").select("id, team_id");
+        if (allMembers && allMembers.length > 0) {
+          for (const m of allMembers) {
+            if (!activeTeamIds.has(m.team_id)) {
+              await adminClient.from("team_members").delete().eq("id", m.id);
+              deletedCount++;
+            }
+          }
+        }
+      }
+
+      console.info(`[send-project-notification] Hard-deleted ${deletedCount} record(s). Target: ${targetId || targetEmail || 'purge'}`);
+
+      return jsonResponse(req, {
+        success: true,
+        deleted: true,
+        deletedCount,
+        targetRef,
+        targetEmail,
+        message: `Successfully hard-deleted ${deletedCount} registration/team record(s) and cleared associated email address(es).`
+      }, 200);
+    }
+
+    // 6. Authorized Action: Hard-delete support message (contact inquiry)
+    if (action === "delete_message") {
+      const msgTarget = (body.messageId || targetId || "").trim();
+      if (!msgTarget) {
+        return jsonResponse(req, { success: false, error: "Missing messageId parameter." }, 400);
+      }
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(msgTarget);
+      if (isUuid) {
+        await adminClient.from("contact_messages").delete().eq("id", msgTarget);
+      } else {
+        await adminClient.from("contact_messages").delete().eq("reference_code", msgTarget);
+      }
+      console.info(`[send-project-notification] Hard-deleted message: ${msgTarget}`);
+      return jsonResponse(req, {
+        success: true,
+        deleted: true,
+        message: `Support inquiry ${msgTarget} permanently deleted.`
+      }, 200);
     }
 
     // 5. Authorized Diagnostic Probe: Verify Google Apps Script endpoint connectivity

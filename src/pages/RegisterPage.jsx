@@ -97,33 +97,84 @@ export default function RegisterPage() {
       try {
         const { data: regMatch, error: regErr } = await supabase
           .from('registrations')
-          .select('id, reference_code, applicant_email')
-          .ilike('applicant_email', clean)
-          .limit(1);
+          .select('id, reference_code, applicant_email, status, organizer_notes')
+          .ilike('applicant_email', clean);
 
         if (!regErr && regMatch && regMatch.length > 0) {
-          return { registered: true, ref: regMatch[0].reference_code, source: 'applicant' };
+          // Only active non-rejected, non-deleted registrations block registration
+          const activeReg = regMatch.find(r => {
+            const s = (r.status || 'pending').toLowerCase();
+            const notes = r.organizer_notes || '';
+            if (s === 'rejected' || s === '__deleted__' || notes.includes('__DELETED__')) {
+              return false;
+            }
+            return true;
+          });
+          if (activeReg) {
+            return { registered: true, ref: activeReg.reference_code, source: 'applicant' };
+          }
         }
       } catch (e) {
         console.warn('[Duplicate Check] registrations lookup notice:', e);
       }
 
-      // 2. Check Supabase team_members table
+      // 2. Check Supabase team_members table (only active teams with valid non-deleted registrations)
       try {
         const { data: memberMatch, error: memErr } = await supabase
           .from('team_members')
           .select('id, member_email, team_id')
-          .ilike('member_email', clean)
-          .limit(1);
+          .ilike('member_email', clean);
 
         if (!memErr && memberMatch && memberMatch.length > 0) {
-          return { registered: true, source: 'team_member' };
+          for (const m of memberMatch) {
+            if (m.team_id) {
+              const { data: linkedRegs } = await supabase
+                .from('registrations')
+                .select('id, reference_code, status, organizer_notes')
+                .eq('team_id', m.team_id);
+
+              if (linkedRegs && linkedRegs.length > 0) {
+                const activeLinked = linkedRegs.find(r => {
+                  const s = (r.status || 'pending').toLowerCase();
+                  const notes = r.organizer_notes || '';
+                  return s !== 'rejected' && s !== '__deleted__' && !notes.includes('__DELETED__');
+                });
+                if (activeLinked) {
+                  return { registered: true, ref: activeLinked.reference_code, source: 'team_member' };
+                }
+              }
+            }
+          }
         }
       } catch (e) {
         console.warn('[Duplicate Check] team_members lookup notice:', e);
       }
+
+      // If online check confirmed email is NOT actively registered in Supabase,
+      // purge any stale entries from localStorage so local caches never block a deleted registration
+      try {
+        const localRegs = JSON.parse(localStorage.getItem('inno_sprint_registrations') || '[]');
+        const updatedLocal = localRegs.filter(r =>
+          !(r.applicant_email && r.applicant_email.trim().toLowerCase() === clean) &&
+          !(r.user_email && r.user_email.trim().toLowerCase() === clean) &&
+          !(Array.isArray(r.team_members) && r.team_members.some(m => m.email && m.email.trim().toLowerCase() === clean))
+        );
+        localStorage.setItem('inno_sprint_registrations', JSON.stringify(updatedLocal));
+
+        const lastReg = JSON.parse(localStorage.getItem('inno_sprint_last_registration') || 'null');
+        if (lastReg && (
+          (lastReg.applicant_email && lastReg.applicant_email.trim().toLowerCase() === clean) ||
+          (lastReg.user_email && lastReg.user_email.trim().toLowerCase() === clean)
+        )) {
+          localStorage.removeItem('inno_sprint_last_registration');
+        }
+      } catch (e) {}
+
+      // Supabase is the authoritative source of truth
+      return { registered: false };
     }
 
+    // Fallback only when Supabase is offline / unconfigured:
     // 3. Check localStorage registrations fallback
     try {
       const localRegs = JSON.parse(localStorage.getItem('inno_sprint_registrations') || '[]');
@@ -454,7 +505,11 @@ export default function RegisterPage() {
           status: 'pending',
           created_at: new Date().toISOString()
         };
-        const filteredRegs = existingRegs.filter(r => r.reference_code !== refCode);
+        const filteredRegs = existingRegs.filter(r =>
+          r.reference_code !== refCode &&
+          r.applicant_email?.trim().toLowerCase() !== formData.email.trim().toLowerCase() &&
+          r.user_email?.trim().toLowerCase() !== formData.email.trim().toLowerCase()
+        );
         filteredRegs.unshift(localEntry);
         localStorage.setItem('inno_sprint_registrations', JSON.stringify(filteredRegs));
         localStorage.setItem('inno_sprint_last_registration', JSON.stringify(localEntry));

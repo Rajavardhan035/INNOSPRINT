@@ -397,90 +397,124 @@ export default function AdminDashboard() {
     const regId = typeof regItem === 'object' ? regItem.id : regItem;
     const refCode = typeof regItem === 'object' ? regItem.reference_code : regItem;
     const teamId = typeof regItem === 'object' ? (regItem.team_id || regItem.teams?.id) : null;
+    const applicantEmail = typeof regItem === 'object'
+      ? (regItem.applicant_email || regItem.email || regItem.profiles?.email || regItem.user_email || '')
+      : '';
 
     if (isSupabaseConfigured) {
       try {
         let deletedInDatabase = false;
 
-        // 1. Try dedicated RPC function if installed
+        // 1. Authoritative hard deletion via Supabase Edge Function (runs with service role to bypass RLS)
         try {
-          const { data: rpcSuccess, error: rpcErr } = await supabase.rpc(
-            'delete_registration_permanently',
-            { p_reg_id: regId || null, p_ref_code: refCode || null }
-          );
-          if (!rpcErr && rpcSuccess) {
+          const callerEmail = user?.email || localStorage.getItem('inno_sprint_admin_email') || 'rajavardhan445@gmail.com';
+          const { data: edgeRes, error: edgeErr } = await supabase.functions.invoke('send-project-notification', {
+            body: {
+              action: 'delete_registration',
+              registrationId: regId || refCode,
+              referenceCode: refCode,
+              applicantEmail: applicantEmail,
+              teamId: teamId,
+              callerEmail: callerEmail
+            }
+          });
+
+          if (!edgeErr && edgeRes?.success && edgeRes?.deleted) {
             deletedInDatabase = true;
+            console.info('[Admin] Registration permanently hard-deleted via Edge Function:', edgeRes);
           }
-        } catch {
-          // RPC may not exist yet, proceed with direct operations
+        } catch (edgeCallErr) {
+          console.warn('[Admin] Edge Function delete notice:', edgeCallErr);
         }
 
+        // 2. Direct database cascade fallback if Edge Function invocation was bypassed
         if (!deletedInDatabase) {
-          // 2. Delete certificates if any
-          if (refCode || regId) {
-            try {
-              let certQuery = supabase.from('certificates').delete();
-              if (regId) certQuery = certQuery.eq('registration_id', regId);
-              else if (refCode) certQuery = certQuery.eq('reference_code', refCode);
-              await certQuery;
-            } catch (certErr) {
-              console.warn('[Admin] Notice deleting certificates:', certErr);
-            }
-          }
-
-          // 3. Delete project submissions if any
-          if (regId) {
-            try {
-              await supabase.from('project_submissions').delete().eq('registration_id', regId);
-            } catch (subErr) {
-              console.warn('[Admin] Notice deleting project_submissions:', subErr);
-            }
-          }
-
-          // 4. Try hard DELETE from registrations with .select() to verify rows were removed
           try {
-            let delQuery = supabase.from('registrations').delete();
-            if (regId) {
-              delQuery = delQuery.eq('id', regId);
-            } else {
-              delQuery = delQuery.eq('reference_code', refCode);
-            }
-            const { data: delRows, error: delErr } = await delQuery.select('id');
-            if (!delErr && delRows && delRows.length > 0) {
+            const { data: rpcSuccess, error: rpcErr } = await supabase.rpc(
+              'delete_registration_permanently',
+              { p_reg_id: regId || null, p_ref_code: refCode || null }
+            );
+            if (!rpcErr && rpcSuccess) {
               deletedInDatabase = true;
             }
-          } catch (delErr) {
-            console.warn('[Admin] Direct delete query notice:', delErr);
-          }
+          } catch {}
 
-          // 5. If hard delete was blocked by Supabase RLS, persist deletion flag in Supabase
           if (!deletedInDatabase) {
-            try {
-              let markQuery = supabase
-                .from('registrations')
-                .update({
-                  organizer_notes: '__DELETED__',
-                  status: 'rejected',
-                  updated_at: new Date().toISOString(),
-                });
-              if (regId) {
-                markQuery = markQuery.eq('id', regId);
-              } else {
-                markQuery = markQuery.eq('reference_code', refCode);
+            // Delete certificates if any
+            if (refCode || regId) {
+              try {
+                let certQuery = supabase.from('certificates').delete();
+                if (regId) certQuery = certQuery.eq('registration_id', regId);
+                else if (refCode) certQuery = certQuery.eq('reference_code', refCode);
+                await certQuery;
+              } catch (certErr) {
+                console.warn('[Admin] Notice deleting certificates:', certErr);
               }
-              await markQuery;
-            } catch (mErr) {
-              console.warn('[Admin] Notice marking as deleted:', mErr);
             }
-          }
 
-          // 6. Delete associated team_members and teams if any
-          if (teamId) {
+            // Delete project submissions if any
+            if (regId) {
+              try {
+                await supabase.from('project_submissions').delete().eq('registration_id', regId);
+              } catch (subErr) {
+                console.warn('[Admin] Notice deleting project_submissions:', subErr);
+              }
+            }
+
+            // Try hard DELETE from registrations with .select() to verify rows were removed
             try {
-              await supabase.from('team_members').delete().eq('team_id', teamId);
-              await supabase.from('teams').delete().eq('id', teamId);
-            } catch (teamErr) {
-              console.warn('[Admin] Notice deleting team/team_members:', teamErr);
+              let delQuery = supabase.from('registrations').delete();
+              if (regId) {
+                delQuery = delQuery.eq('id', regId);
+              } else {
+                delQuery = delQuery.eq('reference_code', refCode);
+              }
+              const { data: delRows, error: delErr } = await delQuery.select('id');
+              if (!delErr && delRows && delRows.length > 0) {
+                deletedInDatabase = true;
+              }
+            } catch (delErr) {
+              console.warn('[Admin] Direct delete query notice:', delErr);
+            }
+
+            // Delete associated team_members and teams if any
+            if (teamId) {
+              try {
+                await supabase.from('team_members').delete().eq('team_id', teamId);
+                await supabase.from('teams').delete().eq('id', teamId);
+              } catch (teamErr) {
+                console.warn('[Admin] Notice deleting team/team_members:', teamErr);
+              }
+            }
+
+            // Clean up team_members matching applicantEmail
+            if (applicantEmail) {
+              try {
+                await supabase.from('team_members').delete().ilike('member_email', applicantEmail.trim().toLowerCase());
+              } catch (memDelErr) {
+                console.warn('[Admin] Notice deleting team_members by email:', memDelErr);
+              }
+            }
+
+            // Dual-resilience fallback: mark as __DELETED__ in Supabase so RLS blocks don't revive it
+            if (!deletedInDatabase) {
+              try {
+                let markQuery = supabase
+                  .from('registrations')
+                  .update({
+                    organizer_notes: '__DELETED__',
+                    status: 'rejected',
+                    updated_at: new Date().toISOString(),
+                  });
+                if (regId) {
+                  markQuery = markQuery.eq('id', regId);
+                } else {
+                  markQuery = markQuery.eq('reference_code', refCode);
+                }
+                await markQuery;
+              } catch (mErr) {
+                console.warn('[Admin] Notice marking as deleted:', mErr);
+              }
             }
           }
         }
@@ -539,28 +573,50 @@ export default function AdminDashboard() {
     if (isSupabaseConfigured) {
       try {
         let deletedInDatabase = false;
+
+        // 1. Authoritative hard deletion via Supabase Edge Function
         try {
-          if (msgId) {
-            const { error: dErr } = await supabase.from('contact_messages').delete().eq('id', msgId);
-            if (!dErr) deletedInDatabase = true;
-          } else if (refCode) {
-            const { error: dErr } = await supabase.from('contact_messages').delete().eq('reference_code', refCode);
-            if (!dErr) deletedInDatabase = true;
+          const callerEmail = user?.email || localStorage.getItem('inno_sprint_admin_email') || 'rajavardhan445@gmail.com';
+          const { data: edgeRes, error: edgeErr } = await supabase.functions.invoke('send-project-notification', {
+            body: {
+              action: 'delete_message',
+              messageId: msgId || refCode,
+              callerEmail: callerEmail
+            }
+          });
+
+          if (!edgeErr && edgeRes?.success && edgeRes?.deleted) {
+            deletedInDatabase = true;
+            console.info('[Admin] Message permanently deleted via Edge Function:', edgeRes);
           }
-        } catch (delErr) {
-          console.warn('[Admin] Direct delete message notice:', delErr);
+        } catch (edgeCallErr) {
+          console.warn('[Admin] Edge Function delete_message notice:', edgeCallErr);
         }
 
-        // Dual-resilience fallback: mark as __DELETED__ in Supabase so RLS blocks don't revive it
         if (!deletedInDatabase) {
           try {
             if (msgId) {
-              await supabase.from('contact_messages').update({ status: '__DELETED__' }).eq('id', msgId);
+              const { error: dErr } = await supabase.from('contact_messages').delete().eq('id', msgId);
+              if (!dErr) deletedInDatabase = true;
             } else if (refCode) {
-              await supabase.from('contact_messages').update({ status: '__DELETED__' }).eq('reference_code', refCode);
+              const { error: dErr } = await supabase.from('contact_messages').delete().eq('reference_code', refCode);
+              if (!dErr) deletedInDatabase = true;
             }
-          } catch (mErr) {
-            console.warn('[Admin] Notice marking message as deleted:', mErr);
+          } catch (delErr) {
+            console.warn('[Admin] Direct delete message notice:', delErr);
+          }
+
+          // Dual-resilience fallback: mark as __DELETED__ in Supabase so RLS blocks don't revive it
+          if (!deletedInDatabase) {
+            try {
+              if (msgId) {
+                await supabase.from('contact_messages').update({ status: '__DELETED__' }).eq('id', msgId);
+              } else if (refCode) {
+                await supabase.from('contact_messages').update({ status: '__DELETED__' }).eq('reference_code', refCode);
+              }
+            } catch (mErr) {
+              console.warn('[Admin] Notice marking message as deleted:', mErr);
+            }
           }
         }
       } catch (err) {
