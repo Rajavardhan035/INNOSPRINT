@@ -119,7 +119,10 @@ export default function Footer() {
               </li>
               <li className="flex items-center space-x-3">
                 <Phone className="w-4 h-4 text-amber-400 flex-shrink-0" />
-                <a href={`tel:${EVENT_DETAILS.organizers.contactPhone}`} className="hover:text-amber-300 transition-colors">
+                <a
+                  href={`tel:${(EVENT_DETAILS.organizers.contactPhone || '+919014509649').replace(/\s+/g, '')}`}
+                  className="hover:text-amber-300 font-mono transition-colors"
+                >
                   {EVENT_DETAILS.organizers.contactPhone}
                 </a>
               </li>

@@ -275,7 +275,23 @@ export default function ContactPage() {
                 <Phone className="w-5 h-5 text-purple-400 mt-1 flex-shrink-0" />
                 <div>
                   <strong className="text-white uppercase font-['Orbitron'] block">Phone / WhatsApp Helpline:</strong>
-                  <span>{EVENT_DETAILS.organizers.contactPhone}</span>
+                  <div className="flex flex-wrap items-center gap-2 mt-1">
+                    <a
+                      href={`tel:${(EVENT_DETAILS.organizers.contactPhone || '+919014509649').replace(/\s+/g, '')}`}
+                      className="text-purple-300 hover:text-purple-200 hover:underline font-mono text-sm font-semibold transition-colors"
+                    >
+                      {EVENT_DETAILS.organizers.contactPhone}
+                    </a>
+                    <span className="text-xs text-gray-500">•</span>
+                    <a
+                      href="https://wa.me/919014509649"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs text-emerald-400 hover:text-emerald-300 hover:underline font-medium transition-colors"
+                    >
+                      Chat on WhatsApp
+                    </a>
+                  </div>
                 </div>
               </li>
             </ul>

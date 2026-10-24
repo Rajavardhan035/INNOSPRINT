@@ -416,6 +416,13 @@ export default function RegisterStatusPage() {
               >
                 {EVENT_DETAILS.organizers.contactEmail}
               </a>
+              {' '}or call{' '}
+              <a
+                href={`tel:${(EVENT_DETAILS.organizers.contactPhone || '+919014509649').replace(/\s+/g, '')}`}
+                className="text-amber-400 underline font-mono"
+              >
+                {EVENT_DETAILS.organizers.contactPhone}
+              </a>
               .
             </p>
           </div>

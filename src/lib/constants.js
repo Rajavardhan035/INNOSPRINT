@@ -18,7 +18,8 @@ export const EVENT_DETAILS = {
     institute: "VVITU",
     department: "Department of AI & Robotics",
     contactEmail: "innosprint2026@vvit.ac.in",
-    contactPhone: "+91 98765 43210",
+    contactPhone: "+91 90145 09649",
+    contactPhoneRaw: "9014509649",
     coordinator: "INNOSPRINT Organizing Team",
   }
 };
