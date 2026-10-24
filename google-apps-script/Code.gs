@@ -22,7 +22,7 @@ var CONFIG = {
   EVENT_VENUE: 'VVIT University, Guntur, Andhra Pradesh, India',
   WEBSITE_URL: 'https://inno-sprint.vercel.app',
   STATUS_PORTAL_URL: 'https://inno-sprint.vercel.app/register/status',
-  SUPPORT_EMAIL: 'support@innosprint.vvit.net'
+  SUPPORT_EMAIL: 'innosprint2k26@gmail.com'
 };
 
 /**
