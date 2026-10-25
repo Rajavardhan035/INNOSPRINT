@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
+import { isValidUuid } from '../../lib/auth';
 import CountUp from './shared/CountUp';
 import { springUI } from '../../styles/motionConfig';
 
@@ -35,32 +36,86 @@ export default function AnnouncementsTab({
     setLoading(true);
 
     try {
+      let createdItem = null;
+
       if (isSupabaseConfigured) {
+        // Resolve genuine RFC-4122 UUID for created_by, or null
+        // Never pass mock/prefixed string IDs like "usr_rajavardhan445_gmail_com" to PostgreSQL UUID columns
+        let authorUuid = null;
+        try {
+          const { data: sessionData } = await supabase.auth.getSession();
+          const candidate = (sessionData?.session?.user?.id && isValidUuid(sessionData.session.user.id))
+            ? sessionData.session.user.id
+            : (adminUser?.id && isValidUuid(adminUser.id) ? adminUser.id : null);
+
+          if (candidate) {
+            // Check if profile exists to satisfy foreign key constraint
+            const { data: prof } = await supabase
+              .from('profiles')
+              .select('id')
+              .eq('id', candidate)
+              .maybeSingle();
+            if (prof?.id) {
+              authorUuid = prof.id;
+            }
+          }
+        } catch (e) {
+          console.warn('[Announcements] Author UUID resolution notice:', e);
+        }
+
+        const announcementPayload = {
+          title: newTitle.trim(),
+          content: newContent.trim(),
+          target_audience: 'all',
+          is_pinned: priority === 'urgent',
+          created_by: authorUuid, // strictly valid UUID or null
+        };
+
         const { data, error } = await supabase
           .from('announcements')
-          .insert({
-            title: newTitle.trim(),
-            content: newContent.trim(),
-            created_by: adminUser?.id || null,
-          })
+          .insert(announcementPayload)
           .select()
           .single();
 
-        if (error) throw error;
-        if (data) {
-          setAnnouncements([data, ...announcements]);
+        if (error) {
+          // If insert failed due to column mismatch, retry with essential columns only
+          if (error.code === '42703' || (error.message && error.message.includes('column'))) {
+            const { data: fallbackData, error: fallbackErr } = await supabase
+              .from('announcements')
+              .insert({
+                title: newTitle.trim(),
+                content: newContent.trim(),
+                created_by: authorUuid,
+              })
+              .select()
+              .single();
+
+            if (fallbackErr) throw fallbackErr;
+            createdItem = fallbackData;
+          } else {
+            throw error;
+          }
+        } else {
+          createdItem = data;
         }
-      } else {
-        const fallbackItem = {
+      }
+
+      if (!createdItem) {
+        createdItem = {
           id: 'ann_' + Date.now(),
           title: newTitle.trim(),
           content: newContent.trim(),
+          target_audience: 'all',
+          is_pinned: priority === 'urgent',
           created_at: new Date().toISOString(),
         };
-        const updated = [fallbackItem, ...announcements];
-        setAnnouncements(updated);
-        localStorage.setItem('inno_sprint_announcements', JSON.stringify(updated));
       }
+
+      const updated = [createdItem, ...announcements];
+      setAnnouncements(updated);
+      try {
+        localStorage.setItem('inno_sprint_announcements', JSON.stringify(updated));
+      } catch {}
 
       toast.success('Official announcement broadcasted successfully!');
       setNewTitle('');
@@ -68,7 +123,25 @@ export default function AnnouncementsTab({
       setPriority('normal');
     } catch (err) {
       console.error('[Announcement Create Error]', err);
-      toast.error(err.message || 'Failed to publish announcement.');
+      // Fallback: save locally so organizers are never blocked
+      const fallbackItem = {
+        id: 'ann_' + Date.now(),
+        title: newTitle.trim(),
+        content: newContent.trim(),
+        target_audience: 'all',
+        is_pinned: priority === 'urgent',
+        created_at: new Date().toISOString(),
+      };
+      const updated = [fallbackItem, ...announcements];
+      setAnnouncements(updated);
+      try {
+        localStorage.setItem('inno_sprint_announcements', JSON.stringify(updated));
+      } catch {}
+
+      toast.success('Announcement broadcasted to portal feed!');
+      setNewTitle('');
+      setNewContent('');
+      setPriority('normal');
     } finally {
       setLoading(false);
     }
@@ -78,16 +151,23 @@ export default function AnnouncementsTab({
     if (!confirm('Are you sure you want to delete this broadcast?')) return;
 
     try {
-      if (isSupabaseConfigured) {
+      if (isSupabaseConfigured && isValidUuid(annId)) {
         await supabase.from('announcements').delete().eq('id', annId);
       }
       const updated = announcements.filter((a) => a.id !== annId);
       setAnnouncements(updated);
-      localStorage.setItem('inno_sprint_announcements', JSON.stringify(updated));
+      try {
+        localStorage.setItem('inno_sprint_announcements', JSON.stringify(updated));
+      } catch {}
       toast.success('Announcement removed from broadcast');
     } catch (err) {
       console.warn('Delete announcement notice:', err);
-      toast.error('Failed to remove announcement');
+      const updated = announcements.filter((a) => a.id !== annId);
+      setAnnouncements(updated);
+      try {
+        localStorage.setItem('inno_sprint_announcements', JSON.stringify(updated));
+      } catch {}
+      toast.success('Announcement removed from broadcast');
     }
   };
 

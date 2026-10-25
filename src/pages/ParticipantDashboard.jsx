@@ -143,11 +143,23 @@ export default function ParticipantDashboard() {
               .from('announcements')
               .select('*')
               .order('created_at', { ascending: false })
-              .limit(3);
-            if (annData && Array.isArray(annData)) {
+              .limit(5);
+            if (annData && Array.isArray(annData) && annData.length > 0) {
               setAnnouncements(annData);
+            } else {
+              const localAnn = JSON.parse(localStorage.getItem('inno_sprint_announcements') || '[]');
+              if (Array.isArray(localAnn) && localAnn.length > 0) {
+                setAnnouncements(localAnn.slice(0, 5));
+              }
             }
-          } catch {}
+          } catch {
+            try {
+              const localAnn = JSON.parse(localStorage.getItem('inno_sprint_announcements') || '[]');
+              if (Array.isArray(localAnn) && localAnn.length > 0) {
+                setAnnouncements(localAnn.slice(0, 5));
+              }
+            } catch {}
+          }
         } catch (err) {
           console.error('[Dashboard Load Error]', err);
         }

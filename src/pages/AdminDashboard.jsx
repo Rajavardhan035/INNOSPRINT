@@ -196,9 +196,20 @@ export default function AdminDashboard() {
         setContactMessages(cleanMsgs);
 
         // 3. User Roles
-        const { data: rolesData } = await supabase
-          .from('user_roles')
-          .select('*, profiles(full_name, email)');
+        let rolesData = [];
+        try {
+          const { data, error } = await supabase
+            .from('user_roles')
+            .select('*, profiles(full_name, email)');
+          if (!error && data) {
+            rolesData = data;
+          } else {
+            const { data: simpleRoles } = await supabase.from('user_roles').select('*');
+            if (simpleRoles) rolesData = simpleRoles;
+          }
+        } catch {
+          // ignore
+        }
         setUserRolesList(rolesData || []);
 
         // 4. Authorized Admins (fetch from live cloud registry synced across devices)
@@ -210,11 +221,31 @@ export default function AdminDashboard() {
         }
 
         // 5. Announcements
-        const { data: annData } = await supabase
-          .from('announcements')
-          .select('*')
-          .order('created_at', { ascending: false });
-        setAnnouncements(annData || []);
+        try {
+          const { data: annData } = await supabase
+            .from('announcements')
+            .select('*')
+            .order('created_at', { ascending: false });
+          let finalAnnouncements = Array.isArray(annData) ? annData : [];
+          try {
+            const localAnn = JSON.parse(localStorage.getItem('inno_sprint_announcements') || '[]');
+            if (Array.isArray(localAnn) && localAnn.length > 0) {
+              localAnn.forEach(la => {
+                if (la && !finalAnnouncements.some(a => a.id === la.id)) {
+                  finalAnnouncements.push(la);
+                }
+              });
+            }
+          } catch {}
+          setAnnouncements(finalAnnouncements);
+        } catch {
+          try {
+            const localAnn = JSON.parse(localStorage.getItem('inno_sprint_announcements') || '[]');
+            setAnnouncements(Array.isArray(localAnn) ? localAnn : []);
+          } catch {
+            setAnnouncements([]);
+          }
+        }
       } catch (err) {
         console.error('[Admin Fetch Error]', err);
       }
