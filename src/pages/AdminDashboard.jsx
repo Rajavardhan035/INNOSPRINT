@@ -7,7 +7,7 @@ import {
   groupRegistrationsIntoTeamCertificateCards,
   fetchAllCertificatesMap,
 } from '../lib/certificates';
-import { sendProjectApprovalEmail } from '../lib/email';
+import { sendProjectApprovalEmail, sendRejectionNoticeEmail } from '../lib/email';
 
 import { AnimatePresence, motion } from 'framer-motion';
 import { Toaster, toast } from 'sonner';
@@ -422,6 +422,34 @@ export default function AdminDashboard() {
     }
   };
 
+  // Safe retry / manual trigger for rejection notice email
+  const handleSendRejectionEmail = async (regItem, forceRetry = false) => {
+    if (!regItem) return false;
+    const regId = typeof regItem === 'object' ? regItem.id : regItem;
+    const refCode = typeof regItem === 'object' ? regItem.reference_code : regItem;
+
+    toast.info('Dispatching rejection notice email...');
+    try {
+      const emailRes = await sendRejectionNoticeEmail({
+        registrationId: regId || refCode,
+        forceRetry,
+      });
+
+      if (emailRes?.alreadySent) {
+        toast.info('Status notice was already sent to this applicant.');
+      } else if (emailRes?.delivered) {
+        toast.success(`Rejection notice dispatched to ${emailRes.recipient || 'applicant'}!`);
+      } else {
+        toast.error(`Email delivery notice: ${emailRes?.error || 'Check configuration'}`);
+      }
+      return emailRes;
+    } catch (err) {
+      console.error('[Admin] Rejection notice email error:', err);
+      toast.error('Failed to dispatch rejection notice: ' + err.message);
+      return { success: false, error: err.message };
+    }
+  };
+
   // Handle registration deletion (permanently delete unwanted registration/team)
   const handleDeleteRegistration = async (regItem) => {
     if (!regItem) return false;
@@ -803,6 +831,8 @@ export default function AdminDashboard() {
                   onSelectRegistration={(reg) => setSelectedRegistration(reg)}
                   onUpdateStatus={handleUpdateStatus}
                   onDeleteRegistration={handleDeleteRegistration}
+                  onSendNotificationEmail={handleSendShortlistEmail}
+                  onSendRejectionEmail={handleSendRejectionEmail}
                   exportCSV={exportCSV}
                 />
               )}
@@ -887,6 +917,7 @@ export default function AdminDashboard() {
         onUpdateStatus={handleUpdateStatus}
         onDeleteRegistration={handleDeleteRegistration}
         onSendNotificationEmail={handleSendShortlistEmail}
+        onSendRejectionEmail={handleSendRejectionEmail}
       />
 
       {/* Global Spotlight Command Palette (Cmd+K) */}

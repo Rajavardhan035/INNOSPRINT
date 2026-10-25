@@ -23,7 +23,9 @@ import {
   Square,
   Sparkles,
   Layers,
-  ArrowUpDown
+  ArrowUpDown,
+  Mail,
+  Send
 } from 'lucide-react';
 import { toast } from 'sonner';
 import StatusChip from './shared/StatusChip';
@@ -34,6 +36,8 @@ export default function RegistrationsTab({
   onSelectRegistration,
   onUpdateStatus,
   onDeleteRegistration,
+  onSendNotificationEmail,
+  onSendRejectionEmail,
   exportCSV
 }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -48,6 +52,114 @@ export default function RegistrationsTab({
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
   const [bulkProcessing, setBulkProcessing] = useState(false);
+
+  // Broadcast modal state
+  const [showBroadcastModal, setShowBroadcastModal] = useState(false);
+  const [broadcastRunning, setBroadcastRunning] = useState(false);
+  const [broadcastTarget, setBroadcastTarget] = useState('rejected'); // 'rejected' | 'selected'
+  const [skipAlreadySent, setSkipAlreadySent] = useState(true);
+  const [broadcastStats, setBroadcastStats] = useState({ total: 0, current: 0, sent: 0, skipped: 0, failed: 0 });
+  const [broadcastLogs, setBroadcastLogs] = useState([]);
+
+  const handleStartBroadcast = async () => {
+    if (!onSendRejectionEmail || broadcastRunning) return;
+
+    let targets = [];
+    if (broadcastTarget === 'selected' && selectedIds.length > 0) {
+      targets = registrations.filter((r) => selectedIds.includes(r.id || r.reference_code));
+    } else {
+      targets = registrations.filter((r) => (r.status || '').toLowerCase() === 'rejected');
+    }
+
+    if (targets.length === 0) {
+      toast.warning('No registrations match the selected target.');
+      return;
+    }
+
+    setBroadcastRunning(true);
+    setBroadcastLogs([]);
+    setBroadcastStats({ total: targets.length, current: 0, sent: 0, skipped: 0, failed: 0 });
+
+    let sentCount = 0;
+    let skippedCount = 0;
+    let failedCount = 0;
+
+    for (let i = 0; i < targets.length; i++) {
+      const reg = targets[i];
+      const applicantName = reg.applicant_name || reg.profiles?.full_name || reg.user_name || 'Applicant';
+      const email = reg.applicant_email || reg.profiles?.email || reg.user_email || '';
+      const ref = reg.reference_code || reg.id;
+      const notes = reg.organizer_notes || '';
+
+      // Skip already sent if requested
+      if (skipAlreadySent && notes.includes('EMAIL_REJECTION_SENT')) {
+        skippedCount++;
+        setBroadcastLogs((prev) => [
+          { ref, email, applicantName, status: 'skipped', message: 'Already received rejection notice.' },
+          ...prev.slice(0, 49),
+        ]);
+        setBroadcastStats({
+          total: targets.length,
+          current: i + 1,
+          sent: sentCount,
+          skipped: skippedCount,
+          failed: failedCount,
+        });
+        continue;
+      }
+
+      setBroadcastStats({
+        total: targets.length,
+        current: i + 1,
+        sent: sentCount,
+        skipped: skippedCount,
+        failed: failedCount,
+      });
+
+      try {
+        const res = await onSendRejectionEmail(reg, !skipAlreadySent);
+        if (res?.delivered) {
+          sentCount++;
+          setBroadcastLogs((prev) => [
+            { ref, email, applicantName, status: 'sent', message: `Delivered to ${email}` },
+            ...prev.slice(0, 49),
+          ]);
+        } else if (res?.alreadySent) {
+          skippedCount++;
+          setBroadcastLogs((prev) => [
+            { ref, email, applicantName, status: 'skipped', message: res.message || 'Already recorded.' },
+            ...prev.slice(0, 49),
+          ]);
+        } else {
+          failedCount++;
+          setBroadcastLogs((prev) => [
+            { ref, email, applicantName, status: 'failed', message: res?.error || 'Failed to dispatch' },
+            ...prev.slice(0, 49),
+          ]);
+        }
+      } catch (err) {
+        failedCount++;
+        setBroadcastLogs((prev) => [
+          { ref, email, applicantName, status: 'failed', message: err.message },
+          ...prev.slice(0, 49),
+        ]);
+      }
+
+      setBroadcastStats({
+        total: targets.length,
+        current: i + 1,
+        sent: sentCount,
+        skipped: skippedCount,
+        failed: failedCount,
+      });
+
+      // Small throttling delay between dispatches (400ms) to prevent hitting Apps Script concurrency limits
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    }
+
+    setBroadcastRunning(false);
+    toast.success(`Broadcast finished: ${sentCount} sent, ${skippedCount} skipped, ${failedCount} failed.`);
+  };
 
   const copyRefCode = (code) => {
     if (!code) return;
@@ -249,6 +361,23 @@ export default function RegistrationsTab({
                 title="Reset all filters"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
+              </motion.button>
+            )}
+
+            {/* Broadcast Rejection Notice Button */}
+            {onSendRejectionEmail && (
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => {
+                  setBroadcastTarget('rejected');
+                  setShowBroadcastModal(true);
+                }}
+                className="px-3.5 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 text-rose-300 hover:text-white font-semibold text-xs transition-all flex items-center gap-2 shadow-lg shadow-rose-950/20"
+                title="Send official closing & rejection update email to applicants"
+              >
+                <Mail className="w-3.5 h-3.5 text-rose-400" />
+                <span>Broadcast Rejection Email ({statusCounts.rejected})</span>
               </motion.button>
             )}
 
@@ -534,6 +663,48 @@ export default function RegistrationsTab({
                             <X className="w-3.5 h-3.5" />
                           </motion.button>
 
+                          {/* Quick Mail Trigger for Shortlisted */}
+                          {statusKey === 'approved' && onSendNotificationEmail && (
+                            <motion.button
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.9 }}
+                              onClick={() => onSendNotificationEmail(reg, true)}
+                              className={`p-1.5 rounded-lg transition-colors ${
+                                reg.organizer_notes && reg.organizer_notes.includes('EMAIL_SHORTLIST_SENT')
+                                  ? 'bg-cyan-500/25 text-cyan-300 border border-cyan-400/40 shadow-sm'
+                                  : 'bg-white/5 hover:bg-cyan-500/20 border border-white/10 hover:border-cyan-500/40 text-cyan-400'
+                              }`}
+                              title={
+                                reg.organizer_notes && reg.organizer_notes.includes('EMAIL_SHORTLIST_SENT')
+                                  ? 'Shortlist Email Sent (Click to resend)'
+                                  : 'Send Shortlist Email'
+                              }
+                            >
+                              <Mail className="w-3.5 h-3.5" />
+                            </motion.button>
+                          )}
+
+                          {/* Quick Mail Trigger for Rejected */}
+                          {statusKey === 'rejected' && onSendRejectionEmail && (
+                            <motion.button
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.9 }}
+                              onClick={() => onSendRejectionEmail(reg, true)}
+                              className={`p-1.5 rounded-lg transition-colors ${
+                                reg.organizer_notes && reg.organizer_notes.includes('EMAIL_REJECTION_SENT')
+                                  ? 'bg-rose-500/25 text-rose-300 border border-rose-400/40 shadow-sm'
+                                  : 'bg-white/5 hover:bg-rose-500/20 border border-white/10 hover:border-rose-500/40 text-rose-400'
+                              }`}
+                              title={
+                                reg.organizer_notes && reg.organizer_notes.includes('EMAIL_REJECTION_SENT')
+                                  ? 'Rejection Email Sent (Click to resend)'
+                                  : 'Send Rejection Notice Email'
+                              }
+                            >
+                              <Mail className="w-3.5 h-3.5" />
+                            </motion.button>
+                          )}
+
                           {/* Quick Delete */}
                           {onDeleteRegistration && (
                             <motion.button
@@ -636,6 +807,23 @@ export default function RegistrationsTab({
                 <span>Reject</span>
               </motion.button>
 
+              {onSendRejectionEmail && (
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  disabled={bulkProcessing}
+                  onClick={() => {
+                    setBroadcastTarget('selected');
+                    setShowBroadcastModal(true);
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-rose-500/25 hover:bg-rose-500/35 border border-rose-400/50 text-rose-200 font-semibold text-xs flex items-center gap-1.5 transition-all"
+                  title="Send rejection notices to selected applicants"
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  <span>Email Notice</span>
+                </motion.button>
+              )}
+
               <button
                 onClick={() => setSelectedIds([])}
                 className="text-xs text-slate-400 hover:text-white px-2 py-1"
@@ -731,6 +919,230 @@ export default function RegistrationsTab({
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   <span>{isDeleting ? 'Deleting...' : 'Delete Permanently'}</span>
+                </motion.button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Broadcast Rejection Notice Modal */}
+      <AnimatePresence>
+        {showBroadcastModal && (
+          <div
+            className="fixed inset-0 z-[120] bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-y-auto"
+            onClick={() => !broadcastRunning && setShowBroadcastModal(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.94, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 8 }}
+              transition={springUI}
+              className="bg-gradient-to-b from-[#131224] to-[#090b14] border border-rose-500/40 rounded-3xl max-w-2xl w-full p-5 sm:p-7 space-y-5 shadow-2xl relative text-left my-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center space-x-3 text-rose-400">
+                  <div className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex-shrink-0">
+                    <Mail className="w-6 h-6 text-rose-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-base sm:text-lg font-bold text-white font-heading">
+                      Broadcast Rejection Notice Email
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      Send official application closing & rejection status update to applicants
+                    </p>
+                  </div>
+                </div>
+                {!broadcastRunning && (
+                  <button
+                    onClick={() => setShowBroadcastModal(false)}
+                    className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
+              {/* Target & Options */}
+              <div className="space-y-3">
+                <label className="text-xs font-semibold text-slate-300">Recipient Target:</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  <button
+                    type="button"
+                    disabled={broadcastRunning}
+                    onClick={() => setBroadcastTarget('rejected')}
+                    className={`p-3 rounded-xl border text-left flex items-start gap-2.5 transition-all ${
+                      broadcastTarget === 'rejected'
+                        ? 'bg-rose-500/15 border-rose-500/60 text-white'
+                        : 'bg-white/[0.02] border-white/10 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="broadcastTarget"
+                      checked={broadcastTarget === 'rejected'}
+                      onChange={() => setBroadcastTarget('rejected')}
+                      className="mt-0.5 accent-rose-500"
+                    />
+                    <div>
+                      <div className="font-semibold text-white">All Rejected Registrations</div>
+                      <div className="text-[11px] text-slate-400">
+                        {statusCounts.rejected} rejected applicant(s)
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={broadcastRunning || selectedIds.length === 0}
+                    onClick={() => setBroadcastTarget('selected')}
+                    className={`p-3 rounded-xl border text-left flex items-start gap-2.5 transition-all ${
+                      broadcastTarget === 'selected'
+                        ? 'bg-rose-500/15 border-rose-500/60 text-white'
+                        : 'bg-white/[0.02] border-white/10 text-slate-400 hover:text-white'
+                    } ${selectedIds.length === 0 ? 'opacity-40 cursor-not-allowed' : ''}`}
+                  >
+                    <input
+                      type="radio"
+                      name="broadcastTarget"
+                      checked={broadcastTarget === 'selected'}
+                      onChange={() => setBroadcastTarget('selected')}
+                      disabled={selectedIds.length === 0}
+                      className="mt-0.5 accent-rose-500"
+                    />
+                    <div>
+                      <div className="font-semibold text-white">Selected Registrations Only</div>
+                      <div className="text-[11px] text-slate-400">
+                        {selectedIds.length} registration(s) selected
+                      </div>
+                    </div>
+                  </button>
+                </div>
+
+                {/* Duplication guard option */}
+                <div className="flex items-center gap-2 pt-1">
+                  <input
+                    type="checkbox"
+                    id="skipSentCheckbox"
+                    checked={skipAlreadySent}
+                    disabled={broadcastRunning}
+                    onChange={(e) => setSkipAlreadySent(e.target.checked)}
+                    className="w-4 h-4 rounded bg-[#060912] border-white/20 text-rose-500 focus:ring-rose-500/30 accent-rose-500 cursor-pointer"
+                  />
+                  <label htmlFor="skipSentCheckbox" className="text-xs text-slate-300 cursor-pointer select-none">
+                    Skip applicants who have already received this notice (Recommended)
+                  </label>
+                </div>
+              </div>
+
+              {/* Message Preview Accordion */}
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="font-semibold text-slate-300">Email Template Preview:</span>
+                  <span className="text-[11px] text-cyan-400 font-mono">Subject: INNOSPRINT 2026: Application Status Update</span>
+                </div>
+                <div className="p-3.5 rounded-2xl bg-[#060912]/90 border border-white/10 font-mono text-[11px] text-slate-300 leading-relaxed max-h-44 overflow-y-auto whitespace-pre-wrap select-text">
+{`Dear Participants,
+
+Thank you for registering for our hackathon and showing your enthusiasm to be a part of the event!
+
+We would like to inform you that registrations are now officially closed.
+
+The shortlisted participants have been notified via email. Applicants who are currently on the waitlist will receive an update by this evening.
+
+If you have not received any update by then, it means your application has not been shortlisted for this edition of the hackathon.
+You can also check you status from here : https://inno-sprint.vercel.app/status
+
+We sincerely appreciate the time and effort you took to register and your interest in being part of this event. Although we may not be able to accommodate everyone this time, we encourage you to stay connected and participate in our future events.
+
+Thank you once again for your interest and support. We wish you all the very best!
+
+Best regards,
+Organizing Team - INNOSPRINT 2026`}
+                </div>
+              </div>
+
+              {/* Live Progress Bar & Telemetry if running or completed */}
+              {broadcastStats.total > 0 && (
+                <div className="space-y-2 p-3.5 rounded-2xl bg-white/[0.02] border border-white/10">
+                  <div className="flex justify-between text-xs font-mono">
+                    <span className="text-slate-300">
+                      Progress: {broadcastStats.current} / {broadcastStats.total}
+                    </span>
+                    <span className="text-cyan-400 font-semibold">
+                      {Math.round((broadcastStats.current / broadcastStats.total) * 100)}%
+                    </span>
+                  </div>
+                  <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-rose-500 via-pink-500 to-emerald-400 transition-all duration-300"
+                      style={{
+                        width: `${Math.round((broadcastStats.current / broadcastStats.total) * 100)}%`,
+                      }}
+                    />
+                  </div>
+                  <div className="flex flex-wrap gap-3 pt-1 text-[11px] font-mono">
+                    <span className="text-emerald-400 font-semibold">Sent: {broadcastStats.sent}</span>
+                    <span className="text-amber-300 font-semibold">Skipped: {broadcastStats.skipped}</span>
+                    <span className="text-rose-400 font-semibold">Failed: {broadcastStats.failed}</span>
+                    <span className="text-slate-400">Remaining: {Math.max(0, broadcastStats.total - broadcastStats.current)}</span>
+                  </div>
+
+                  {/* Recent logs */}
+                  {broadcastLogs.length > 0 && (
+                    <div className="mt-2 space-y-1 max-h-28 overflow-y-auto text-[10px] font-mono divide-y divide-white/5 pt-1">
+                      {broadcastLogs.slice(0, 10).map((log, idx) => (
+                        <div key={idx} className="flex items-center justify-between py-1 text-slate-300">
+                          <span className="truncate max-w-[220px]">
+                            {log.email} <span className="text-slate-500">({log.ref})</span>
+                          </span>
+                          <span
+                            className={`px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase ${
+                              log.status === 'sent'
+                                ? 'bg-emerald-500/20 text-emerald-400'
+                                : log.status === 'skipped'
+                                ? 'bg-amber-500/20 text-amber-300'
+                                : 'bg-rose-500/20 text-rose-400'
+                            }`}
+                          >
+                            {log.status}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  disabled={broadcastRunning}
+                  onClick={() => setShowBroadcastModal(false)}
+                  className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 hover:text-white text-xs font-semibold transition-colors disabled:opacity-50"
+                >
+                  {broadcastStats.current > 0 && !broadcastRunning ? 'Close' : 'Cancel'}
+                </button>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  type="button"
+                  disabled={broadcastRunning}
+                  onClick={handleStartBroadcast}
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 via-rose-500 to-red-600 hover:from-rose-500 hover:to-red-500 text-white text-xs font-bold flex items-center space-x-2 shadow-lg shadow-rose-950/50 transition-all disabled:opacity-50"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>
+                    {broadcastRunning
+                      ? 'Broadcasting Emails...'
+                      : broadcastStats.current > 0
+                      ? 'Restart Broadcast'
+                      : 'Send Notice Emails Now'}
+                  </span>
                 </motion.button>
               </div>
             </motion.div>

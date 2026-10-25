@@ -12,7 +12,8 @@ export default function RegistrationDetailsModal({
   onClose, 
   onUpdateStatus, 
   onDeleteRegistration,
-  onSendNotificationEmail 
+  onSendNotificationEmail,
+  onSendRejectionEmail 
 }) {
   const [copiedRef, setCopiedRef] = useState(false);
   const [copiedEmail, setCopiedEmail] = useState(false);
@@ -608,6 +609,29 @@ export default function RegistrationDetailsModal({
                   <XCircle className="w-3.5 h-3.5" />
                   <span>Reject</span>
                 </button>
+
+                {currentStatus === 'rejected' && onSendRejectionEmail && (
+                  <button
+                    type="button"
+                    disabled={sendingEmail}
+                    onClick={async () => {
+                      setSendingEmail(true);
+                      await onSendRejectionEmail(registration, true);
+                      setSendingEmail(false);
+                    }}
+                    className="py-1.5 px-3 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 border border-rose-400/40 text-rose-300 hover:text-white font-medium text-xs flex items-center space-x-1.5 transition-all disabled:opacity-50 shadow-sm"
+                    title="Dispatch official rejection status notice email to applicant"
+                  >
+                    <Mail className="w-3.5 h-3.5 text-rose-400" />
+                    <span>
+                      {sendingEmail
+                        ? 'Sending...'
+                        : Boolean(registration?.organizer_notes && registration.organizer_notes.includes('EMAIL_REJECTION_SENT'))
+                        ? 'Resend Rejection Notice'
+                        : 'Send Rejection Notice'}
+                    </span>
+                  </button>
+                )}
 
                 {/* Delete Registration Option */}
                 {onDeleteRegistration && (

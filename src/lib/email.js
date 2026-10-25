@@ -87,6 +87,24 @@ export async function sendProjectApprovalEmail({ registrationId, submissionId, f
   }
 }
 
+/**
+ * Invokes the Supabase Edge Function to dispatch an official rejection notice email
+ * via the configured Google Apps Script endpoint.
+ *
+ * @param {Object} params
+ * @param {string} params.registrationId - UUID or reference code of the registration
+ * @param {string} [params.submissionId] - Optional project_submissions UUID
+ * @param {boolean} [params.forceRetry=false] - If true, bypasses duplicate check to retry delivery
+ */
+export async function sendRejectionNoticeEmail({ registrationId, submissionId, forceRetry = false }) {
+  return sendProjectApprovalEmail({
+    registrationId,
+    submissionId,
+    forceRetry,
+    notificationType: 'rejected',
+  });
+}
+
 export async function sendEmailNotification({ to, subject, template, data }) {
   const resendKey = import.meta.env.VITE_RESEND_API_KEY;
   const sender = import.meta.env.VITE_SENDER_EMAIL || 'noreply@vvit.ac.in';

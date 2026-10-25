@@ -91,12 +91,12 @@ function doPost(e) {
       }, 401);
     }
 
-    // 4. Validate notification type (accept 'shortlisted' or 'approved')
+    // 4. Validate notification type (accept 'shortlisted', 'approved', or 'rejected')
     var notificationType = String(payload.notificationType || 'shortlisted').trim().toLowerCase();
-    if (notificationType !== 'shortlisted' && notificationType !== 'approved') {
+    if (notificationType !== 'shortlisted' && notificationType !== 'approved' && notificationType !== 'rejected') {
       return createJsonResponse({
         success: false,
-        error: "Invalid Request: Only notificationType 'shortlisted' or 'approved' is supported by this endpoint."
+        error: "Invalid Request: Only notificationType 'shortlisted', 'approved', or 'rejected' is supported by this endpoint."
       }, 400);
     }
 
@@ -127,10 +127,14 @@ function doPost(e) {
     var trackTheme = String(payload.theme || '').trim();
 
     // 8. Generate Subject, Plain Text, and High-Deliverability HTML template
-    var isApproval = notificationType === 'approved';
-    var subject = isApproval
-      ? 'INNOSPRINT 2026: Your Registration Has Been Approved'
-      : 'INNOSPRINT 2026: Shortlist Notification';
+    var subject;
+    if (notificationType === 'rejected') {
+      subject = 'INNOSPRINT 2026: Application Status Update';
+    } else if (notificationType === 'approved') {
+      subject = 'INNOSPRINT 2026: Your Registration Has Been Approved';
+    } else {
+      subject = 'INNOSPRINT 2026: Shortlist Notification';
+    }
 
     var plainTextBody = generatePlainText(teamName, projectTitle, referenceCode, notificationType, trackTheme);
     var htmlBody = generateHtmlEmail(teamName, projectTitle, referenceCode, trackTheme, notificationType);
@@ -208,6 +212,31 @@ function escapeHtml(str) {
  * Generates clean, RFC-compliant plain text matching the HTML message content
  */
 function generatePlainText(teamName, projectTitle, referenceCode, notificationType, trackTheme) {
+  if (notificationType === 'rejected') {
+    return [
+      'Dear Participants,',
+      '',
+      'Thank you for registering for our hackathon and showing your enthusiasm to be a part of the event!',
+      '',
+      'We would like to inform you that registrations are now officially closed.',
+      '',
+      'The shortlisted participants have been notified via email. Applicants who are currently on the waitlist will receive an update by this evening.',
+      '',
+      'If you have not received any update by then, it means your application has not been shortlisted for this edition of the hackathon.',
+      'You can also check you status from here : https://inno-sprint.vercel.app/status',
+      '',
+      'We sincerely appreciate the time and effort you took to register and your interest in being part of this event. Although we may not be able to accommodate everyone this time, we encourage you to stay connected and participate in our future events.',
+      '',
+      'Thank you once again for your interest and support. We wish you all the very best!',
+      '',
+      'Best regards,',
+      'Organizing Team - INNOSPRINT 2026',
+      'Vasireddy Venkatadri Institute of Technology (VVIT)',
+      'Nambur, Guntur, Andhra Pradesh – 522508, India',
+      'Official Portal: https://inno-sprint.vercel.app'
+    ].join('\n');
+  }
+
   var isApproval = notificationType === 'approved';
   var statusPhrase = isApproval
     ? 'your registration has been approved'
@@ -257,6 +286,107 @@ function generateHtmlEmail(teamName, projectTitle, referenceCode, trackTheme, no
   var safeTitle = escapeHtml(projectTitle);
   var safeRef = escapeHtml(referenceCode);
   var safeTrack = escapeHtml(trackTheme);
+
+  if (notificationType === 'rejected') {
+    return '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">' +
+    '<html xmlns="http://www.w3.org/1999/xhtml" lang="en">' +
+    '<head>' +
+      '<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />' +
+      '<meta name="viewport" content="width=device-width, initial-scale=1.0" />' +
+      '<title>INNOSPRINT 2026 Registration Update</title>' +
+      '<style type="text/css">' +
+        'body { margin: 0; padding: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; -webkit-font-smoothing: antialiased; }' +
+        'table { border-collapse: collapse; }' +
+        'td { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; }' +
+        '.btn-primary:hover { background-color: #0369a1 !important; }' +
+      '</style>' +
+    '</head>' +
+    '<body style="margin: 0; padding: 0; background-color: #f1f5f9;">' +
+      '<table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f1f5f9; padding: 24px 0;">' +
+        '<tr>' +
+          '<td align="center">' +
+            '<table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">' +
+              
+              '<!-- Institutional Header -->' +
+              '<tr>' +
+                '<td style="background-color: #0f172a; padding: 28px 32px; border-bottom: 3px solid #0284c7; text-align: left;">' +
+                  '<div style="color: #38bdf8; font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 4px;">National Hackathon 2026</div>' +
+                  '<h1 style="color: #ffffff; font-size: 24px; font-weight: 800; margin: 0; letter-spacing: 0.5px;">INNOSPRINT 2026</h1>' +
+                  '<p style="color: #94a3b8; font-size: 13px; margin: 6px 0 0 0;">VVIT University • ' + CONFIG.EVENT_DATES + '</p>' +
+                '</td>' +
+              '</tr>' +
+
+              '<!-- Status Pill Banner -->' +
+              '<tr>' +
+                '<td style="padding: 20px 32px 0 32px;">' +
+                  '<span style="display: inline-block; background-color: #f8fafc; border: 1px solid #cbd5e1; color: #475569; font-size: 11px; font-weight: 700; letter-spacing: 1px; padding: 6px 14px; border-radius: 4px; text-transform: uppercase;">' +
+                    'REGISTRATIONS CLOSED • APPLICATION UPDATE' +
+                  '</span>' +
+                '</td>' +
+              '</tr>' +
+
+              '<!-- Main Content -->' +
+              '<tr>' +
+                '<td style="padding: 20px 32px 28px 32px; color: #1e293b; font-size: 15px; line-height: 1.6;">' +
+                  '<p style="margin: 0 0 16px 0; font-size: 16px; font-weight: 600; color: #0f172a;">Dear Participants,</p>' +
+                  
+                  '<p style="margin: 0 0 16px 0; color: #334155;">' +
+                    'Thank you for registering for our hackathon and showing your enthusiasm to be a part of the event!' +
+                  '</p>' +
+
+                  '<p style="margin: 0 0 16px 0; color: #334155;">' +
+                    'We would like to inform you that registrations are now officially closed.' +
+                  '</p>' +
+
+                  '<p style="margin: 0 0 16px 0; color: #334155;">' +
+                    'The shortlisted participants have been notified via email. Applicants who are currently on the waitlist will receive an update by this evening.' +
+                  '</p>' +
+
+                  '<p style="margin: 0 0 20px 0; color: #334155;">' +
+                    'If you have not received any update by then, it means your application has not been shortlisted for this edition of the hackathon.' +
+                  '</p>' +
+
+                  '<!-- Status Check Button Card -->' +
+                  '<div style="text-align: center; margin: 28px 0 24px 0; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 20px;">' +
+                    '<p style="margin: 0 0 12px 0; font-size: 13px; color: #64748b; font-weight: 600;">You can also check you status from here :</p>' +
+                    '<a href="https://inno-sprint.vercel.app/status" class="btn-primary" style="display: inline-block; background-color: #0284c7; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 700; padding: 12px 28px; border-radius: 6px; letter-spacing: 0.5px;">Check Status Portal &rarr;</a>' +
+                    '<p style="font-size: 11px; color: #94a3b8; margin: 10px 0 0 0;">https://inno-sprint.vercel.app/status</p>' +
+                  '</div>' +
+
+                  '<p style="margin: 0 0 16px 0; color: #334155;">' +
+                    'We sincerely appreciate the time and effort you took to register and your interest in being part of this event. Although we may not be able to accommodate everyone this time, we encourage you to stay connected and participate in our future events.' +
+                  '</p>' +
+
+                  '<p style="margin: 0 0 24px 0; color: #334155;">' +
+                    'Thank you once again for your interest and support. We wish you all the very best!' +
+                  '</p>' +
+
+                  '<!-- Formal Closing -->' +
+                  '<div style="border-top: 1px solid #e2e8f0; padding-top: 20px; margin-top: 24px; font-size: 13px; color: #475569;">' +
+                    '<p style="margin: 0 0 4px 0;">Best regards,</p>' +
+                    '<p style="margin: 0; font-weight: 700; color: #0f172a;">Organizing Team - INNOSPRINT 2026</p>' +
+                    '<p style="margin: 2px 0 0 0; color: #64748b;">Vasireddy Venkatadri Institute of Technology (VVIT)</p>' +
+                    '<p style="margin: 2px 0 0 0; color: #64748b;">Nambur, Guntur, Andhra Pradesh – 522508</p>' +
+                  '</div>' +
+                '</td>' +
+              '</tr>' +
+
+              '<!-- Footer -->' +
+              '<tr>' +
+                '<td style="background-color: #f8fafc; border-top: 1px solid #e2e8f0; padding: 20px 32px; text-align: center; font-size: 11px; color: #64748b; line-height: 1.5;">' +
+                  '<p style="margin: 0 0 4px 0;">This is an official transactional message sent to registered applicants of INNOSPRINT 2026.</p>' +
+                  '<p style="margin: 0;">Have questions? Contact us at <a href="mailto:' + CONFIG.SUPPORT_EMAIL + '" style="color: #0284c7; text-decoration: none;">' + CONFIG.SUPPORT_EMAIL + '</a>.</p>' +
+                '</td>' +
+              '</tr>' +
+
+            '</table>' +
+          '</td>' +
+        '</tr>' +
+      '</table>' +
+    '</body>' +
+    '</html>';
+  }
+
   var isApproval = notificationType === 'approved';
   var statusBadgeText = isApproval ? 'REGISTRATION APPROVED' : 'PROJECT SHORTLISTED';
   var statusPhrase = isApproval

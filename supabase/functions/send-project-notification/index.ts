@@ -421,6 +421,8 @@ serve(async (req: Request) => {
         getBody = "GET error: " + (e.message || String(e));
       }
 
+      const testNotificationType = (body.testNotificationType || body.notificationType || "shortlisted").toString().trim().toLowerCase();
+
       // Probe B: POST test with Content-Type: application/json
       let postJsonStatus = 0;
       let postJsonBody = "";
@@ -430,7 +432,7 @@ serve(async (req: Request) => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             secret: webhookSecret,
-            notificationType: "shortlisted",
+            notificationType: testNotificationType,
             recipientEmail: "test@example.com",
             teamName: "Diagnostic Test",
             projectTitle: "Diagnostic Project",
@@ -452,7 +454,7 @@ serve(async (req: Request) => {
           headers: { "Content-Type": "text/plain;charset=utf-8" },
           body: JSON.stringify({
             secret: webhookSecret,
-            notificationType: "shortlisted",
+            notificationType: testNotificationType,
             recipientEmail: "test@example.com",
             teamName: "Diagnostic Test",
             projectTitle: "Diagnostic Project",
@@ -553,9 +555,29 @@ serve(async (req: Request) => {
       );
     }
 
-    // 6. Verify that project is actually approved / shortlisted in Supabase
+    // 6. Resolve requested notification type and verify eligibility
+    const rawNotifType = (body.notificationType || "shortlisted").toString().trim().toLowerCase();
+    const resolvedNotificationType = rawNotifType === "rejected"
+      ? "rejected"
+      : (rawNotifType === "approved" ? "approved" : "shortlisted");
+
     const projectStatus = String(registrationRecord.status || "").toLowerCase().trim();
-    if (projectStatus !== "approved") {
+
+    if (resolvedNotificationType === "rejected") {
+      // Rejection status notice: Allowed for rejected, waitlisted, or pending applications.
+      // If registration is explicitly approved, prevent accidental dispatch unless forceRetry is requested.
+      if (projectStatus === "approved" && !forceRetry) {
+        return jsonResponse(
+          req,
+          {
+            success: false,
+            error: `Cannot send rejection notice: Current registration status is 'approved'. Please verify or use forceRetry.`,
+            currentStatus: projectStatus,
+          },
+          400
+        );
+      }
+    } else if (projectStatus !== "approved") {
       return jsonResponse(
         req,
         {
@@ -603,6 +625,10 @@ serve(async (req: Request) => {
     // 8. Atomic Concurrency & Idempotency Check via record_notification_attempt RPC
     let notificationRowId: string | null = null;
     let rpcHandled = false;
+    const notificationTypeToRecord = resolvedNotificationType;
+    const notifLabel = notificationTypeToRecord === "rejected"
+      ? "Rejection status update email"
+      : "Shortlist email notification";
 
     try {
       const { data: rpcRows, error: rpcError } = await adminClient.rpc(
@@ -613,7 +639,7 @@ serve(async (req: Request) => {
           p_recipient_email: recipientEmail,
           p_team_name: teamName,
           p_project_title: projectTitle,
-          p_notification_type: "shortlisted",
+          p_notification_type: notificationTypeToRecord,
           p_force_retry: Boolean(forceRetry),
         }
       );
@@ -631,11 +657,12 @@ serve(async (req: Request) => {
               success: true,
               delivered: true,
               alreadySent: true,
-              message: "Shortlist email notification was already sent to this team.",
+              message: `${notifLabel} was already sent to this team.`,
               recipient: recipientEmail,
               teamName: teamName,
               projectTitle: projectTitle,
               referenceCode: referenceCode,
+              notificationType: notificationTypeToRecord,
             },
             200
           );
@@ -667,7 +694,7 @@ serve(async (req: Request) => {
           .from("project_notifications")
           .select("*")
           .eq("registration_id", registrationRecord.id)
-          .eq("notification_type", "shortlisted")
+          .eq("notification_type", notificationTypeToRecord)
           .maybeSingle();
 
         if (notifCheckErr && notifCheckErr.code === "PGRST205") {
@@ -682,11 +709,12 @@ serve(async (req: Request) => {
                 success: true,
                 delivered: true,
                 alreadySent: true,
-                message: "Shortlist email notification was already sent to this team.",
+                message: `${notifLabel} was already sent to this team.`,
                 recipient: recipientEmail,
                 teamName: teamName,
                 projectTitle: projectTitle,
                 referenceCode: referenceCode,
+                notificationType: notificationTypeToRecord,
                 sentAt: existingNotif.sent_at,
               },
               200
@@ -733,7 +761,7 @@ serve(async (req: Request) => {
                 recipient_email: recipientEmail,
                 team_name: teamName,
                 project_title: projectTitle,
-                notification_type: "shortlisted",
+                notification_type: notificationTypeToRecord,
                 status: "pending",
                 attempt_count: 1,
                 last_attempt_at: new Date().toISOString(),
@@ -785,15 +813,14 @@ serve(async (req: Request) => {
       const u = new URL(webhookUrl);
       urlInfo = `${u.hostname}${u.pathname.slice(-8)}`;
     } catch {}
-    console.info(`[send-project-notification] Dispatching shortlist email to GAS webhook (${urlInfo}) for: ${recipientEmail} (${teamName})`);
+    console.info(`[send-project-notification] Dispatching ${notificationTypeToRecord} email to GAS webhook (${urlInfo}) for: ${recipientEmail} (${teamName})`);
 
-    const resolvedNotificationType = (body.notificationType || "shortlisted").toString().trim().toLowerCase();
     const gasPayload = {
       secret: webhookSecret,
       recipientEmail: recipientEmail,
       teamName: teamName,
       projectTitle: projectTitle,
-      notificationType: resolvedNotificationType === "approved" ? "approved" : "shortlisted",
+      notificationType: notificationTypeToRecord,
       referenceCode: referenceCode,
       theme: theme,
     };
@@ -918,8 +945,9 @@ serve(async (req: Request) => {
       // Dual-resilient stamp in organizer_notes
       try {
         const currentNotes = registrationRecord.organizer_notes || "";
-        const emailStamp = `[EMAIL_SHORTLIST_SENT: ${nowIso} to ${recipientEmail}]`;
-        if (!currentNotes.includes("EMAIL_SHORTLIST_SENT")) {
+        const stampKey = notificationTypeToRecord === "rejected" ? "EMAIL_REJECTION_SENT" : "EMAIL_SHORTLIST_SENT";
+        const emailStamp = `[${stampKey}: ${nowIso} to ${recipientEmail}]`;
+        if (!currentNotes.includes(stampKey)) {
           await adminClient
             .from("registrations")
             .update({
