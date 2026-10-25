@@ -222,9 +222,9 @@ export default function SchedulePage() {
                   CONFIRMED DATES
                 </span>
                 <strong className="block text-xs sm:text-sm font-black uppercase font-['Orbitron'] text-white tracking-wider mt-0.5 leading-snug">
-                  JULY 26–28, 2026
+                  OCTOBER 26–28, 2026
                 </strong>
-                <span className="block text-[10px] text-gray-400 mt-0.5">Fri 7:00 AM – Sun 11:00 AM</span>
+                <span className="block text-[10px] text-gray-400 mt-0.5">Mon 10:00 AM – Wed 12:00 PM</span>
               </div>
             </div>
 
@@ -234,12 +234,12 @@ export default function SchedulePage() {
               </div>
               <div className="min-w-0">
                 <span className="block text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400 font-['Orbitron']">
-                  REPORTING TIME
+                  INAUGURATION
                 </span>
                 <strong className="block text-xs sm:text-sm font-black uppercase font-['Orbitron'] text-white tracking-wider mt-0.5 leading-snug">
-                  06:45 AM
+                  10:00 AM
                 </strong>
-                <span className="block text-[10px] text-amber-300/90 mt-0.5">Friday, July 26, 2026</span>
+                <span className="block text-[10px] text-amber-300/90 mt-0.5">Monday, October 26, 2026</span>
               </div>
             </div>
 
@@ -270,14 +270,16 @@ export default function SchedulePage() {
                   Authoritative Timeline Notice
                 </span>
                 <span className="text-gray-300 text-xs leading-relaxed">
-                  Start: <strong>Friday, July 26 at 7:00 AM</strong> (Reporting at 06:45 AM) • End: <strong>Sunday, July 28 at 11:00 AM</strong>.
+                  Start: <strong>Monday, October 26 at 10:00 AM</strong> (Hackathon Begins at 12:00 PM) • End: <strong>Wednesday, October 28 at 12:00 PM</strong>.
                 </span>
               </div>
             </div>
             <div className="flex items-center space-x-2 text-[11px] font-mono text-amber-300 bg-black/60 px-3 py-1.5 rounded-xl border border-amber-500/30 self-stretch md:self-auto justify-center">
-              <span>Day 2 Code Freeze (09:00 PM)</span>
+              <span>Day 1 Phase 1 Ends (04:00 PM)</span>
               <span className="text-gray-600">|</span>
-              <span>Day 3 Final Freeze (09:45 AM)</span>
+              <span>Day 2 Phase 2 Ends (11:00 AM)</span>
+              <span className="text-gray-600">|</span>
+              <span>Day 3 Phase 3 Ends (09:00 AM)</span>
             </div>
           </div>
         </div>
@@ -485,7 +487,7 @@ export default function SchedulePage() {
               </h2>
 
               <p className="text-sm sm:text-base text-gray-300 font-medium leading-relaxed">
-                Sunday, July 28, 2026 at 10:00 AM. Each team pitches directly to the official judges panel:
+                Wednesday, October 28, 2026. Final Evaluation (08:00 AM – 09:00 AM) followed by the Grand Closing Ceremony & Awards (10:00 AM – 12:00 PM):
               </p>
 
               {/* Exact Presentation Breakdown */}
@@ -539,7 +541,7 @@ export default function SchedulePage() {
               WHAT EVERY TEAM MUST SUBMIT BEFORE FREEZE
             </h3>
             <p className="text-xs sm:text-sm text-gray-300 mt-1">
-              Ensure all components are uploaded and verified before the Day 3 Final Freeze at 09:45 AM.
+              Ensure all components are uploaded and verified before the Day 3 Final Evaluation (08:00 AM – 09:00 AM).
             </p>
           </div>
 
